@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import List, Optional, Dict, Any, Literal
 from uuid import UUID
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, model_validator
 
 from .base import VersionedModel
 
@@ -61,24 +61,15 @@ class ChainExecution(VersionedModel):
 
     @model_validator(mode='after')
     def validate_completion(self) -> 'ChainExecution':
-        """Validate that completed_at is set if status is terminal."""
-        if self.status in ["success", "failed", "cancelled"] and self.completed_at is None:
-            object.__setattr__(self, 'completed_at', datetime.utcnow())
-        return self
+        """Validate that completed_at and execution_time are populated."""
+        if self.status in ["success", "failed", "cancelled"]:
+            if self.completed_at is None:
+                object.__setattr__(self, "completed_at", datetime.utcnow())
 
-    @field_validator("execution_time_ms", mode="before")
-    @classmethod
-    def calculate_execution_time(cls, v: Optional[int], info: Dict[str, Any]) -> Optional[int]:
-        """Calculate execution time from started_at and completed_at if not provided."""
-        if v is not None:
-            return v
-            
-        data = info.data
-        started = data.get("started_at")
-        completed = data.get("completed_at")
-        
-        if started and completed:
-            delta = completed - started
-            return int(delta.total_seconds() * 1000)
-            
-        return None 
+            if self.execution_time_ms is None and self.started_at and self.completed_at:
+                delta = self.completed_at - self.started_at
+                object.__setattr__(
+                    self, "execution_time_ms", int(delta.total_seconds() * 1000)
+                )
+
+        return self
