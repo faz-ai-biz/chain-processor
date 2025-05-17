@@ -18,3 +18,7 @@ Use Docker to run tests in an isolated PostgreSQL environment:
 ```bash
 make test-docker
 ```
+
+## Postman Collection
+
+The repository includes a Postman collection located at `../docs/postman_collection.json`. Import this file into Postman to exercise all API endpoints. The collection uses a `base_url` variable that defaults to `http://localhost:8000`. Adjust this variable to match your running server URL.
