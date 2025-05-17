@@ -32,6 +32,7 @@ services:
       context: .
       dockerfile: ./chain-processor-api/Dockerfile
     container_name: chain-processor-api
+    command: sh -c "cd /app/chain-processor-db && alembic upgrade head && cd /app/chain-processor-api && uvicorn chain_processor_api.main:app --host 0.0.0.0 --port 8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/chain_processor
       - CORS_ORIGINS=["*"]
