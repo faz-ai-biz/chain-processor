@@ -1,15 +1,30 @@
 from __future__ import annotations
 
 from typing import List
+from datetime import datetime
+import uuid
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from chain_processor_db.session import get_db
-from chain_processor_db.models.chain import ChainStrategy
+from chain_processor_db.models.chain import ChainStrategy, StrategyNode
+from chain_processor_db.models.execution import ChainExecution, NodeExecution, ExecutionStatus
 from chain_processor_db.repositories.chain_repo import ChainRepository
+from chain_processor_db.repositories.node_repo import NodeRepository
+from chain_processor_db.repositories.execution_repo import ExecutionRepository
 
-from ..schemas import ChainCreate, ChainRead
+from chain_processor_core.executor.chain_executor import ChainExecutor
+from chain_processor_core.exceptions.errors import ChainProcessorError
+
+from ..schemas import (
+    ChainCreate, 
+    ChainRead, 
+    ChainExecuteRequest, 
+    ChainExecuteResponse,
+    NodeExecutionResult,
+    AddNodeToChainRequest
+)
 
 router = APIRouter(prefix="/chains", tags=["chains"])
 
@@ -47,3 +62,195 @@ def list_chains(db: Session = Depends(get_db)) -> List[ChainRead]:
         )
         for c in chains
     ]
+
+
+@router.post("/{chain_id}/nodes", status_code=status.HTTP_201_CREATED)
+def add_node_to_chain(
+    chain_id: uuid.UUID,
+    node_request: AddNodeToChainRequest,
+    db: Session = Depends(get_db)
+) -> dict:
+    """
+    Add a node to a chain strategy.
+    
+    Args:
+        chain_id: The ID of the chain to add the node to
+        node_request: The node to add
+        db: Database session
+        
+    Returns:
+        A message indicating success
+    """
+    chain_repo = ChainRepository(db)
+    node_repo = NodeRepository(db)
+    
+    # Check if chain exists
+    chain = chain_repo.get_by_id(chain_id)
+    if not chain:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chain with ID {chain_id} not found",
+        )
+    
+    # Check if node exists
+    node = node_repo.get_by_id(node_request.node_id)
+    if not node:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Node with ID {node_request.node_id} not found",
+        )
+    
+    # Add node to chain
+    try:
+        chain_repo.add_node_to_strategy(
+            strategy_id=chain_id,
+            node_id=node_request.node_id,
+            position=node_request.position,
+            config=node_request.config,
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Failed to add node to chain: {str(e)}",
+        )
+    
+    return {
+        "message": f"Node {node_request.node_id} added to chain {chain_id} at position {node_request.position}"
+    }
+
+
+@router.post("/{chain_id}/execute", response_model=ChainExecuteResponse)
+def execute_chain(
+    chain_id: uuid.UUID, 
+    request: ChainExecuteRequest, 
+    db: Session = Depends(get_db)
+) -> ChainExecuteResponse:
+    # Get the chain strategy
+    chain_repo = ChainRepository(db)
+    execution_repo = ExecutionRepository(db)
+    node_repo = NodeRepository(db)
+    
+    chain = chain_repo.get_by_id(chain_id)
+    if not chain:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Chain with ID {chain_id} not found",
+        )
+    
+    if not chain.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Chain with ID {chain_id} is not active",
+        )
+    
+    # Create a chain execution record
+    chain_execution = ChainExecution(
+        strategy_id=chain_id,
+        input_text=request.input_text,
+        status=ExecutionStatus.IN_PROGRESS.value,
+    )
+    execution_repo.create(chain_execution)
+    
+    try:
+        # Get the node configurations
+        strategy_nodes = db.query(StrategyNode).filter(
+            StrategyNode.strategy_id == chain_id
+        ).order_by(StrategyNode.position).all()
+        
+        if not strategy_nodes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Chain with ID {chain_id} has no nodes",
+            )
+        
+        # Prepare node configurations for executor
+        node_configs = []
+        for sn in strategy_nodes:
+            node = node_repo.get_by_id(sn.node_id)
+            if not node:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Node with ID {sn.node_id} not found",
+                )
+            # Use the node name as the identifier for the registry
+            node_configs.append((node.name, sn.config))
+        
+        # Execute the chain
+        executor = ChainExecutor()
+        result = executor.execute_chain(
+            chain_id=str(chain_id),
+            input_data=request.input_text,
+            node_configs=node_configs
+        )
+        
+        # Update the chain execution record
+        chain_execution.status = ExecutionStatus.SUCCESS.value if result.success else ExecutionStatus.FAILED.value
+        chain_execution.output_text = result.output_data
+        chain_execution.error = result.error
+        chain_execution.execution_time_ms = result.execution_time_ms
+        chain_execution.completed_at = datetime.utcnow()
+        db.commit()
+        
+        # Create node execution records
+        for node_result in result.node_results:
+            node_exec = NodeExecution(
+                execution_id=chain_execution.id,
+                node_id=uuid.UUID(node_result.node_id),
+                input_text=node_result.input_data,
+                output_text=node_result.output_data,
+                error=node_result.error,
+                status=ExecutionStatus.SUCCESS.value if node_result.success else ExecutionStatus.FAILED.value,
+                execution_time_ms=node_result.execution_time_ms,
+                completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
+            )
+            db.add(node_exec)
+        db.commit()
+        
+        # Create the response
+        node_results = [
+            NodeExecutionResult(
+                node_id=nr.node_id,
+                input_text=nr.input_data,
+                output_text=nr.output_data,
+                error=nr.error,
+                execution_time_ms=nr.execution_time_ms,
+                success=nr.success
+            )
+            for nr in result.node_results
+        ]
+        
+        return ChainExecuteResponse(
+            id=chain_execution.id,
+            chain_id=chain_id,
+            input_text=request.input_text,
+            output_text=result.output_data,
+            error=result.error,
+            execution_time_ms=result.execution_time_ms,
+            status=chain_execution.status,
+            started_at=chain_execution.started_at,
+            completed_at=chain_execution.completed_at,
+            node_results=node_results
+        )
+        
+    except ChainProcessorError as e:
+        # Update the chain execution record with the error
+        chain_execution.status = ExecutionStatus.FAILED.value
+        chain_execution.error = str(e)
+        chain_execution.completed_at = datetime.utcnow()
+        db.commit()
+        
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
+    except Exception as e:
+        # Update the chain execution record with the error
+        chain_execution.status = ExecutionStatus.FAILED.value
+        chain_execution.error = f"Unexpected error: {str(e)}"
+        chain_execution.completed_at = datetime.utcnow()
+        db.commit()
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}",
+        )

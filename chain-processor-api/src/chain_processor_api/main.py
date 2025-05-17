@@ -1,5 +1,6 @@
 """FastAPI application for the Chain Processor system."""
 
+import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -7,6 +8,20 @@ from fastapi.responses import JSONResponse
 from .api.router import api_router
 from .core.config import settings
 from chain_processor_core.exceptions.errors import ChainProcessorError
+
+# Import to ensure nodes are registered
+import chain_processor_core
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+)
+logger = logging.getLogger(__name__)
+
+# Log the available nodes
+available_nodes = chain_processor_core.default_registry.list_nodes()
+logger.info(f"Available nodes in registry: {available_nodes}")
 
 app = FastAPI(
     title="Chain Processor API",
