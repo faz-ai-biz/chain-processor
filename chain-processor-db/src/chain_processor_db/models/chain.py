@@ -26,7 +26,9 @@ class ChainStrategy(BaseVersionedModel):
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     tags: Mapped[List[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
-    metadata: Mapped[Dict] = mapped_column(JSONB, default=dict, nullable=False)
+    metadata_json: Mapped[Dict] = mapped_column(
+        "metadata", JSONB, default=dict, nullable=False
+    )
 
     # Relationships
     created_by_user = relationship("User", back_populates="chain_strategies")

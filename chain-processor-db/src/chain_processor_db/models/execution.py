@@ -46,7 +46,9 @@ class ChainExecution(BaseVersionedModel):
     created_by_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         ForeignKey("users.id"), nullable=True
     )
-    metadata: Mapped[Dict] = mapped_column(JSONB, default=dict, nullable=False)
+    metadata_json: Mapped[Dict] = mapped_column(
+        "metadata", JSONB, default=dict, nullable=False
+    )
 
     # Relationships
     strategy = relationship("ChainStrategy", back_populates="chain_executions")
@@ -84,7 +86,9 @@ class NodeExecution(BaseModel):
     started_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, nullable=False)
     completed_at: Mapped[Optional[datetime]] = mapped_column(nullable=True)
     execution_time_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    metadata: Mapped[Dict] = mapped_column(JSONB, default=dict, nullable=False)
+    metadata_json: Mapped[Dict] = mapped_column(
+        "metadata", JSONB, default=dict, nullable=False
+    )
 
     # Relationships
     chain_execution = relationship("ChainExecution", back_populates="node_executions")
