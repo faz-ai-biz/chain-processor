@@ -1,9 +1,8 @@
 """Application configuration using Pydantic settings."""
 
-from typing import List, Union
+from typing import List
 
 from pydantic_settings import BaseSettings
-from pydantic import AnyHttpUrl
 
 
 class Settings(BaseSettings):

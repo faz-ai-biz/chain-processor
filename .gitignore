@@ -1,0 +1,27 @@
+# Python cache and packaging
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+.eggs/
+*.egg-info/
+
+# Virtual environments
+venv/
+.env
+
+# Editor directories and files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Testing
+.tox/
+.pytest_cache/
+.coverage
+htmlcov/
