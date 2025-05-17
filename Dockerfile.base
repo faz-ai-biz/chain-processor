@@ -14,4 +14,4 @@ RUN cd /app/chain-processor-db && pip install --no-deps -e .
 
 # Install all dependencies of both packages
 RUN cd /app/chain-processor-core && pip install -e .
-RUN cd /app/chain-processor-db && pip install --no-dependencies-check -e . 
+RUN cd /app/chain-processor-db && pip install --no-build-isolation -e . 

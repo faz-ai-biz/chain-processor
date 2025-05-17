@@ -25,7 +25,6 @@ services:
       context: .
       dockerfile: Dockerfile.base
     image: core-chain-nlp-base:latest
-    profiles: ["build-only"]
 
   # API service
   api:
