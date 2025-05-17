@@ -243,9 +243,11 @@ class ExecutionRepository(BaseRepository[ChainExecution]):
             node_execution = self.db.get(NodeExecution, node_execution_id)
             return node_execution
             
-        return self.db.execute(
+        result = self.db.execute(
             update(NodeExecution)
             .where(NodeExecution.id == node_execution_id)
             .values(**data)
             .returning(NodeExecution)
-        ).scalar_one_or_none() 
+        )
+        self.db.commit()
+        return result.scalar_one_or_none()
