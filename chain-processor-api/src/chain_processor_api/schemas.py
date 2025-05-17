@@ -4,7 +4,7 @@ from typing import List, Optional, Dict, Any, Generic, TypeVar
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 T = TypeVar('T')
 
@@ -62,8 +62,9 @@ class AddNodeToChainRequest(BaseModel):
 class ChainExecuteRequest(BaseModel):
     input_text: str
     
-    @validator('input_text')
-    def validate_input_text(cls, v):
+    @field_validator('input_text')
+    @classmethod
+    def validate_input_text(cls, v: str) -> str:
         if not v.strip():
             raise ValueError("Input text cannot be empty")
         if len(v) > 10000:  # Limit to 10,000 characters
