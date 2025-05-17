@@ -11,8 +11,10 @@ from typing import AsyncGenerator, Generator, Optional
 from sqlalchemy import create_engine, Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from .base import metadata
+from .base import db_metadata as metadata
+from chain_processor_api.core.config import settings
 
 
 def get_connection_url() -> str:
