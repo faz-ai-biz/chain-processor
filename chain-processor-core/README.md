@@ -73,19 +73,26 @@ chain-processor-core/
 ## Usage
 
 ```python
-from chain_processor_core.models.chain import Chain, Node
+from chain_processor_core.models.chain import Chain, ChainStrategyCreate
+from chain_processor_core.models.node import Node, NodeReference
 from chain_processor_core.exceptions.errors import ChainProcessorError
 from chain_processor_core.lib_chains.base import ChainNode
 
-# Create a chain with nodes
-chain = Chain(
-    id="chain-123",
+# Create some nodes
+node1 = Node(name="First Node", code="print('first')")
+node2 = Node(name="Second Node", code="print('second')")
+
+# Define the node order for the strategy
+strategy = ChainStrategyCreate(
     name="Example Chain",
     nodes=[
-        Node(id="node-1", name="First Node", position=1),
-        Node(id="node-2", name="Second Node", position=2),
-    ]
+        NodeReference(node_id=node1.id, position=1),
+        NodeReference(node_id=node2.id, position=2),
+    ],
 )
+
+# Combine strategy and nodes into a chain
+chain = Chain(strategy=strategy, nodes=[node1, node2])
 
 # Exception handling
 try:
