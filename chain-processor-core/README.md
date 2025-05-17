@@ -76,7 +76,6 @@ chain-processor-core/
 from chain_processor_core.models.chain import Chain, ChainStrategyCreate
 from chain_processor_core.models.node import Node, NodeReference
 from chain_processor_core.exceptions.errors import ChainProcessorError
-from chain_processor_core.lib_chains.base import ChainNode
 
 # Create some nodes
 node1 = Node(name="First Node", code="print('first')")
