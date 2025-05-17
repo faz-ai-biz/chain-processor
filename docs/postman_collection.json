@@ -1,0 +1,99 @@
+{
+  "info": {
+    "name": "Chain Processor API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Ping",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/ping",
+          "host": [
+            "{{base_url}}"
+          ],
+          "path": [
+            "api",
+            "ping"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Create Chain",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Example Chain\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/chains/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "chains", ""]
+        }
+      }
+    },
+    {
+      "name": "List Chains",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/chains/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "chains", ""]
+        }
+      }
+    },
+    {
+      "name": "Create User",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"Secretpass1\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/api/users/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "users", ""]
+        }
+      }
+    },
+    {
+      "name": "List Users",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{base_url}}/api/users/",
+          "host": ["{{base_url}}"],
+          "path": ["api", "users", ""]
+        }
+      }
+    }
+  ]
+}
