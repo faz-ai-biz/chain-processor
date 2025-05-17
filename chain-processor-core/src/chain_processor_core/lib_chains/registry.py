@@ -22,10 +22,21 @@ class NodeRegistry:
         """Singleton pattern implementation."""
         if cls._instance is None:
             cls._instance = super(NodeRegistry, cls).__new__(cls)
-            cls._instance._nodes: Dict[str, Type[ChainNode]] = {}
-            cls._instance._node_instances: Dict[str, ChainNode] = {}
-            cls._instance._tags: Dict[str, Set[str]] = {}
+            cls._instance._initialize()
         return cls._instance
+        
+    def _initialize(self):
+        """Initialize the registry data structures."""
+        self._nodes: Dict[str, Type[ChainNode]] = {}
+        self._node_instances: Dict[str, ChainNode] = {}
+        self._tags: Dict[str, Set[str]] = {}
+        
+    def clear(self):
+        """
+        Clear all registered nodes and tags.
+        This method is primarily intended for testing purposes.
+        """
+        self._initialize()
 
     def register(self, node_class: Type[ChainNode], name: Optional[str] = None, tags: Optional[List[str]] = None) -> str:
         """
@@ -74,11 +85,15 @@ class NodeRegistry:
             ValueError: If the node is already registered
         """
         name = name or func.__name__
-        if name in self._nodes:
+        if name in self._nodes or name in self._node_instances:
             raise ValueError(f"Node with name '{name}' is already registered")
             
+        # Create function node instance
         node = FunctionNode(func, name)
-        self._node_instances[name] = node
+        
+        # Store in both dictionaries
+        self._nodes[name] = FunctionNode  # Register the class
+        self._node_instances[name] = node  # Store the instance
         
         # Add tags
         if tags:

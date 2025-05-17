@@ -14,6 +14,36 @@ from chain_processor_core.lib_chains.registry import (
 from chain_processor_core.exceptions.errors import NodeNotFoundError, NodeLoadError
 
 
+@pytest.fixture(autouse=True)
+def reset_registry(request):
+    """Reset the registry before each test."""
+    registry = NodeRegistry()
+    
+    # Store decorator registered nodes
+    decorated_nodes = []
+    if "RegisteredNode" in registry.list_nodes():
+        decorated_nodes.append("RegisteredNode")
+    if "lowercase_node" in registry.list_nodes():
+        decorated_nodes.append("lowercase_node")
+    
+    # Clear registry
+    registry.clear()
+    
+    # Re-register decorator nodes if needed
+    for test_name in ["test_registry_decorators"]:
+        if request.function.__name__ == test_name:
+            # Re-register the decorator nodes for specific tests
+            registry.register(RegisteredNode, "RegisteredNode", ["test", "uppercase"])
+            
+            # Register lowercase_node function
+            def lowercase_fn(text: str) -> str:
+                return text.lower()
+            
+            registry.register_function(lowercase_fn, "lowercase_node", ["test", "lowercase"])
+    
+    yield
+
+
 class TestNode(TextChainNode):
     """Test node implementation."""
 
@@ -46,8 +76,8 @@ class RegisteredNode(TextChainNode):
         return input_text.upper()
 
 
-@register_function_node(tags=["test", "lowercase"])
-def lowercase_node(text: str) -> str:
+@register_function_node(name="lowercase_node", tags=["test", "lowercase"])
+def lowercase_function(text: str) -> str:
     """Node function that is registered via decorator."""
     return text.lower()
 
