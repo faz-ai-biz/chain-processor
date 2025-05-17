@@ -3,7 +3,7 @@ FROM python:3.13-slim
 WORKDIR /app
 
 # Install build dependencies
-RUN pip install hatchling>=1.19.0
+RUN pip install hatchling>=1.19.0 editables
 
 # Copy all packages
 COPY chain-processor-core /app/chain-processor-core
