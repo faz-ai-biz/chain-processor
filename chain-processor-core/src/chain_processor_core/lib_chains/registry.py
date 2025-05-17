@@ -30,6 +30,7 @@ class NodeRegistry:
         self._nodes: Dict[str, Type[ChainNode]] = {}
         self._node_instances: Dict[str, ChainNode] = {}
         self._tags: Dict[str, Set[str]] = {}
+        self._node_uuids: Dict[str, uuid.UUID] = {}  # Store UUIDs for nodes
         
     def clear(self):
         """
@@ -54,17 +55,24 @@ class NodeRegistry:
             ValueError: If the node is already registered
         """
         name = name or node_class.__name__
-        if name in self._nodes:
+        node_key = f"class:{name}"
+        
+        if node_key in self._nodes:
             raise ValueError(f"Node with name '{name}' is already registered")
             
-        self._nodes[name] = node_class
+        self._nodes[node_key] = node_class
+        
+        # Generate a deterministic UUID for this node type
+        namespace = uuid.UUID('9e5d3eaa-f5c8-4d03-956d-17f455189c27')  # Fixed namespace for nodes
+        node_uuid = uuid.uuid5(namespace, node_key)
+        self._node_uuids[node_key] = node_uuid
         
         # Add tags
         if tags:
             for tag in tags:
                 if tag not in self._tags:
                     self._tags[tag] = set()
-                self._tags[tag].add(name)
+                self._tags[tag].add(node_key)
                 
         return name
 
@@ -85,22 +93,29 @@ class NodeRegistry:
             ValueError: If the node is already registered
         """
         name = name or func.__name__
-        if name in self._nodes or name in self._node_instances:
+        node_key = f"func:{name}"
+        
+        if node_key in self._nodes or node_key in self._node_instances:
             raise ValueError(f"Node with name '{name}' is already registered")
             
         # Create function node instance
         node = FunctionNode(func, name)
         
         # Store in both dictionaries
-        self._nodes[name] = FunctionNode  # Register the class
-        self._node_instances[name] = node  # Store the instance
+        self._nodes[node_key] = FunctionNode  # Register the class
+        self._node_instances[node_key] = node  # Store the instance
+        
+        # Generate a deterministic UUID for this node
+        namespace = uuid.UUID('9e5d3eaa-f5c8-4d03-956d-17f455189c27')  # Fixed namespace for nodes
+        node_uuid = uuid.uuid5(namespace, node_key)
+        self._node_uuids[node_key] = node_uuid
         
         # Add tags
         if tags:
             for tag in tags:
                 if tag not in self._tags:
                     self._tags[tag] = set()
-                self._tags[tag].add(name)
+                self._tags[tag].add(node_key)
                 
         return name
 
@@ -117,9 +132,21 @@ class NodeRegistry:
         Raises:
             NodeNotFoundError: If the node is not found
         """
-        if name not in self._nodes:
-            raise NodeNotFoundError(f"Node '{name}' not found")
-        return self._nodes[name]
+        # Try class namespace first
+        class_key = f"class:{name}"
+        if class_key in self._nodes:
+            return self._nodes[class_key]
+            
+        # Try function namespace second
+        func_key = f"func:{name}"
+        if func_key in self._nodes:
+            return self._nodes[func_key]
+            
+        # For backward compatibility, try without namespace
+        if name in self._nodes:
+            return self._nodes[name]
+            
+        raise NodeNotFoundError(f"Node '{name}' not found")
 
     def get_node_instance(self, name: str, *args: Any, **kwargs: Any) -> ChainNode:
         """
@@ -140,19 +167,51 @@ class NodeRegistry:
             NodeNotFoundError: If the node is not found
             NodeLoadError: If the node cannot be instantiated
         """
-        # Check if we have a pre-instantiated node
+        # Check if we have a pre-instantiated node with namespaces
+        func_key = f"func:{name}"
+        if func_key in self._node_instances:
+            return self._node_instances[func_key]
+            
+        # For backward compatibility, check without namespace
         if name in self._node_instances:
             return self._node_instances[name]
             
-        # Otherwise, instantiate from the class
-        if name not in self._nodes:
-            raise NodeNotFoundError(f"Node '{name}' not found")
-            
+        # Otherwise, get the class and instantiate
         try:
-            node_class = self._nodes[name]
+            node_class = self.get_node_class(name)
             return node_class(*args, **kwargs)
+        except NodeNotFoundError:
+            raise
         except Exception as e:
             raise NodeLoadError(f"Failed to instantiate node '{name}': {e}")
+
+    def get_node_uuid(self, name: str) -> uuid.UUID:
+        """
+        Get the UUID for a node by name.
+        
+        Args:
+            name: The name of the node
+            
+        Returns:
+            UUID for the node
+        """
+        # Try class namespace first
+        class_key = f"class:{name}"
+        if class_key in self._node_uuids:
+            return self._node_uuids[class_key]
+            
+        # Try function namespace second
+        func_key = f"func:{name}"
+        if func_key in self._node_uuids:
+            return self._node_uuids[func_key]
+            
+        # For backward compatibility, try without namespace
+        if name in self._node_uuids:
+            return self._node_uuids[name]
+            
+        # Generate a deterministic UUID if not found
+        namespace = uuid.UUID('9e5d3eaa-f5c8-4d03-956d-17f455189c27')
+        return uuid.uuid5(namespace, name)
 
     def list_nodes(self, tag: Optional[str] = None) -> List[str]:
         """
@@ -167,8 +226,11 @@ class NodeRegistry:
         if tag:
             if tag not in self._tags:
                 return []
-            return list(self._tags[tag])
-        return list(self._nodes.keys())
+            # Strip namespace prefixes when returning node names
+            return [key.split(':', 1)[1] if ':' in key else key for key in self._tags[tag]]
+        
+        # Strip namespace prefixes when returning node names
+        return [key.split(':', 1)[1] if ':' in key else key for key in self._nodes.keys()]
 
     def list_tags(self) -> List[str]:
         """

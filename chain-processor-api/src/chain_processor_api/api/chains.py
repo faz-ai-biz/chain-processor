@@ -218,22 +218,19 @@ def execute_chain(
             # Assuming the order of nodes in the strategy matches the order of results
             if len(result.node_results) == len(ordered_nodes):
                 for i, node_result in enumerate(result.node_results):
-                    # Find the actual node ID from the map using the node name from result
-                    node_id = node_name_to_id_map.get(node_result.node_id)
-                    if node_id:
-                        node_exec = NodeExecution(
-                            execution_id=chain_execution.id,
-                            node_id=node_id,  # Use node ID from the map
-                            input_text=node_result.input_data,
-                            output_text=node_result.output_data,
-                            error=node_result.error,
-                            status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
-                            execution_time_ms=node_result.execution_time_ms,
-                            completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
-                        )
-                        node_executions.append(node_exec)
-                    else:
-                        print(f"Warning: Node ID mapping not found for {node_result.node_id}")
+                    # NodeExecutionResult now includes both node_id (UUID) and node_name (str)
+                    # We can use the node_id directly as it's already a UUID
+                    node_exec = NodeExecution(
+                        execution_id=chain_execution.id,
+                        node_id=node_result.node_id,  # Use UUID directly
+                        input_text=node_result.input_text,
+                        output_text=node_result.output_data,
+                        error=node_result.error,
+                        status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
+                        execution_time_ms=node_result.execution_time_ms,
+                        completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
+                    )
+                    node_executions.append(node_exec)
             else:
                 # If lengths don't match, log the issue and fail explicitly
                 error_msg = f"Node result count mismatch: {len(result.node_results)} vs {len(ordered_nodes)}"
@@ -260,7 +257,8 @@ def execute_chain(
         node_results = [
             NodeExecutionResult(
                 node_id=nr.node_id,
-                input_text=nr.input_data,
+                node_name=nr.node_name,
+                input_text=nr.input_text,
                 output_text=nr.output_data,
                 error=nr.error,
                 execution_time_ms=nr.execution_time_ms,

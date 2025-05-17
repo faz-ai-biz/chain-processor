@@ -19,13 +19,15 @@ class NodeExecutionResult:
     
     def __init__(
         self,
-        node_id: str,
+        node_id: uuid.UUID,
+        node_name: str,
         input_data: str,
         output_data: Optional[str] = None,
         error: Optional[str] = None,
         execution_time_ms: Optional[int] = None
     ):
         self.node_id = node_id
+        self.node_name = node_name
         self.input_data = input_data
         self.output_data = output_data
         self.error = error
@@ -91,6 +93,22 @@ class ChainExecutor:
         
         return sanitized
     
+    def get_node_uuid(self, node_name: str) -> uuid.UUID:
+        """
+        Get the UUID for a node name. If the node is built-in and doesn't
+        have a UUID, generate a deterministic one based on the name.
+        
+        Args:
+            node_name: Name of the node
+            
+        Returns:
+            UUID for the node
+        """
+        # Generate a deterministic UUID from the name
+        # This ensures consistency across executions
+        namespace = uuid.UUID('9e5d3eaa-f5c8-4d03-956d-17f455189c27')  # Fixed namespace for nodes
+        return uuid.uuid5(namespace, node_name)
+    
     def execute_chain(
         self, 
         chain_id: str,
@@ -117,9 +135,16 @@ class ChainExecutor:
         
         try:
             # Execute each node in the chain
-            for node_id, config in node_configs:
+            for node_name, config in node_configs:
+                # Generate UUID for this node
+                node_uuid = self.get_node_uuid(node_name)
+                
                 # Create a node execution result object
-                node_result = NodeExecutionResult(node_id=node_id, input_data=current_data)
+                node_result = NodeExecutionResult(
+                    node_id=node_uuid,
+                    node_name=node_name,
+                    input_data=current_data
+                )
                 
                 try:
                     # Get the node
@@ -127,17 +152,15 @@ class ChainExecutor:
                     
                     # Get the node instance from the registry
                     try:
-                        node = default_registry.get_node_instance(node_id, **config)
+                        node = default_registry.get_node_instance(node_name, **config)
                     except NodeNotFoundError:
-                        raise NodeNotFoundError(f"Node '{node_id}' not found in registry")
+                        raise NodeNotFoundError(f"Node '{node_name}' not found in registry")
                     
                     # Process the data
-                    if isinstance(node, TextChainNode):
-                        # For text nodes, pass the string directly
-                        current_data = cast(str, node.process(current_data))
-                    else:
-                        # For other node types, might need different handling
-                        current_data = cast(str, node.process(current_data))
+                    result = node.process(current_data)
+                    if not isinstance(result, str):
+                        raise TypeError(f"Node '{node_name}' returned {type(result)}, expected str")
+                    current_data = result
                     
                     # Update node result
                     node_execution_time = int((time.time() - node_start_time) * 1000)
@@ -147,7 +170,8 @@ class ChainExecutor:
                 except Exception as e:
                     # If node execution fails, record the error
                     node_result.error = self._sanitize_error_message(str(e))
-                    raise ChainProcessorError(f"Node '{node_id}' execution failed: {self._sanitize_error_message(str(e))}")
+                    node_result.success = False  # Update success flag when setting error
+                    raise ChainProcessorError(f"Node '{node_name}' execution failed: {self._sanitize_error_message(str(e))}")
                 finally:
                     # Add the node result to the list
                     node_results.append(node_result)

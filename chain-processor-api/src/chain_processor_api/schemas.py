@@ -73,7 +73,8 @@ class ChainExecuteRequest(BaseModel):
 
 
 class NodeExecutionResult(BaseModel):
-    node_id: str
+    node_id: UUID
+    node_name: str
     input_text: str
     output_text: Optional[str] = None
     error: Optional[str] = None

@@ -1,6 +1,7 @@
 """FastAPI application for the Chain Processor system."""
 
 import logging
+import os
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -12,12 +13,14 @@ from chain_processor_core.exceptions.errors import ChainProcessorError
 # Import to ensure nodes are registered
 import chain_processor_core
 
-# Configure logging
+# Configure logging with configurable level
+log_level = os.environ.get("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+logger.info(f"Logging configured with level: {log_level}")
 
 # Log the available nodes
 available_nodes = chain_processor_core.default_registry.list_nodes()

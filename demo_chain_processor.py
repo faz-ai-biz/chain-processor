@@ -22,18 +22,19 @@ import json
 import sys
 import time
 import uuid
+import os
 from typing import Dict, List, Optional
 
 # =============================================================================
 # Configuration
 # =============================================================================
 
-# API base URL - change to match your deployment
-API_URL = "http://10.10.10.187:8095/api"
+# API base URL - configurable through environment variable
+API_URL = os.environ.get("API_URL", "http://localhost:8095/api")
 
 # Demo options
 SAMPLE_TEXT = "Hello world! This is a demonstration of the Chain Processor API."
-VERBOSE = True  # Set to False for less output
+VERBOSE = os.environ.get("VERBOSE", "1") == "1"  # Can be disabled with VERBOSE=0
 
 # =============================================================================
 # Utility Functions
@@ -221,14 +222,8 @@ def execute_chain(chain_id, input_text, db_nodes):
     
     print("\nNode Results:")
     for node_result in result.get("node_results", []):
-        # Try to map node IDs back to names for clearer output
-        node_id = node_result['node_id']
-        node_name = "Unknown"
-        
-        for name, id_val in db_nodes.items():
-            if id_val == node_id:
-                node_name = name
-                break
+        # Use node_name directly instead of mapping from ID
+        node_name = node_result.get('node_name', "Unknown")
                 
         print(f"- Node: {node_name}")
         print(f"  Input: {node_result['input_text']}")
@@ -269,8 +264,12 @@ def main():
     execute_chain(chain_id, SAMPLE_TEXT, db_nodes)
     
     print("\n========== DEMO COMPLETED ==========\n")
+    
+    # Extract base URL for documentation
+    api_base = API_URL.rsplit('/api', 1)[0]
+    
     print("Next Steps:")
-    print("1. Explore the API documentation at http://10.10.10.187:8095/docs")
+    print(f"1. Explore the API documentation at {api_base}/docs")
     print("2. Create your own chains and node configurations")
     print("3. Develop custom nodes by extending TextChainNode")
 
