@@ -1,0 +1,30 @@
+services:
+  postgres_test:
+    image: postgres:14-alpine
+    container_name: chain-processor-api-test-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: chain_processor_test
+    ports:
+      - "5433:5432"  # Using 5433 to avoid conflicts with potential local PostgreSQL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d chain_processor_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    container_name: chain-processor-api-test
+    environment:
+      TEST_DATABASE_URL: postgresql://postgres:postgres@postgres_test:5432/chain_processor_test
+      PYTHONPATH: /app
+    depends_on:
+      postgres_test:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    command: pytest -xvs 
