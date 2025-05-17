@@ -2,6 +2,9 @@ FROM python:3.13-slim
 
 WORKDIR /app
 
+# Install build dependencies
+RUN pip install hatchling>=1.19.0
+
 # Copy all packages
 COPY chain-processor-core /app/chain-processor-core
 COPY chain-processor-db /app/chain-processor-db
