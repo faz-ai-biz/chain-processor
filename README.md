@@ -33,60 +33,82 @@ docker compose down
 
 The Chain Processor Core package includes built-in text processing nodes (like `UppercaseNode`, `LowercaseNode`, etc.) that can be used to create processing chains. To use these nodes with the API, follow these steps:
 
-### 1. Register the Nodes in the Database
+### Running the Demo
 
-The nodes are defined in the code, but must be registered in the database before they can be used in chains:
+A comprehensive demo script is included to showcase the complete workflow:
 
 ```bash
-# Copy the registration script to the API container
-docker cp docker_register_nodes.py chain-processor-api:/app/docker_register_nodes.py
-
-# Run the script inside the container
-docker exec -it chain-processor-api python /app/docker_register_nodes.py
+python demo_chain_processor.py
 ```
 
-This registers all the built-in text processing nodes in the database. You should see output confirming the registration of nodes like `UppercaseNode`, `LowercaseNode`, `count_words`, etc.
+This script demonstrates:
+1. Checking for nodes in the database
+2. Creating a chain strategy
+3. Adding nodes to the chain
+4. Executing the chain with sample text
+5. Displaying the results
 
-### 2. Create and Run Processing Chains
+### Manual Steps
 
-Once the nodes are registered, you can use the API to:
+If you prefer to understand the process step-by-step:
+
+#### 1. Register the Nodes in the Database
+
+The nodes are defined in the code, but must be registered in the database before they can be used in chains. You'll need to create a script similar to this:
+
+```python
+from chain_processor_core.lib_chains.registry import default_registry
+from chain_processor_core.lib_chains.base import TextChainNode
+from chain_processor_core.nodes import text_processing  # Make sure this is imported
+
+from chain_processor_db.session import get_db
+from chain_processor_db.models.node import Node
+from chain_processor_db.repositories.node_repo import NodeRepository
+
+# Get available nodes from registry
+nodes = default_registry.list_nodes()
+print(f"Found {len(nodes)} nodes in registry")
+
+# Register them in database
+db = next(get_db())
+node_repo = NodeRepository(db)
+
+for name in nodes:
+    # Get node details, create DB entry, etc.
+    # ...
+```
+
+Then run it in the Docker container:
+```bash
+docker cp your_script.py chain-processor-api:/app/
+docker exec chain-processor-api python /app/your_script.py
+```
+
+#### 2. Creating and Running Chains
+
+Once nodes are registered, use the API to:
 1. Create a chain strategy
 2. Add nodes to the chain
 3. Execute the chain with text input
 
-The `docker_demo.py` script demonstrates this workflow:
-
 ```bash
-python docker_demo.py
-```
-
-> **Note**: There's currently an issue with chain execution in the API where you might encounter an error: `'str' object has no attribute 'value'`. This happens in the `chains.py` file where it's trying to use `ExecutionStatus.IN_PROGRESS.value`, but `ExecutionStatus.IN_PROGRESS` is a string. If you encounter this, you can fix it by modifying `chain-processor-api/src/chain_processor_api/api/chains.py` and changing instances of `ExecutionStatus.XXX.value` to just `ExecutionStatus.XXX`.
-
-### 3. Creating Custom Chains Manually
-
-You can also create chains manually using the API:
-
-```bash
-# 1. List available registered nodes
-curl http://localhost:8095/api/nodes/
-
-# 2. Create a chain strategy
+# Create a chain strategy
 curl -X POST "http://localhost:8095/api/chains/" \
   -H "Content-Type: application/json" \
   -d '{"name": "My Text Chain", "description": "Custom text processing", "tags": ["demo"]}'
 
-# 3. Add nodes to the chain (replace UUIDs with actual values)
+# Add nodes to the chain (replace UUIDs with actual values)
 curl -X POST "http://localhost:8095/api/chains/{chain_id}/nodes" \
   -H "Content-Type: application/json" \
   -d '{"node_id": "{node_uuid}", "position": 1, "config": {}}'
 
-# 4. Execute the chain
+# Execute the chain
 curl -X POST "http://localhost:8095/api/chains/{chain_id}/execute" \
   -H "Content-Type: application/json" \
   -d '{"input_text": "Hello world!"}'
 ```
 
-### 4. Creating Custom Nodes
+### Creating Custom Nodes
 
 To create custom text processing nodes, extend the `TextChainNode` class and implement the `process` method:
 

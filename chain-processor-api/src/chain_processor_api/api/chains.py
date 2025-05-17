@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Dict
 from datetime import datetime
 import uuid
 
@@ -147,7 +147,7 @@ def execute_chain(
     chain_execution = ChainExecution(
         strategy_id=chain_id,
         input_text=request.input_text,
-        status=ExecutionStatus.IN_PROGRESS.value,
+        status=ExecutionStatus.IN_PROGRESS,
     )
     execution_repo.create(chain_execution)
     
@@ -163,8 +163,11 @@ def execute_chain(
                 detail=f"Chain with ID {chain_id} has no nodes",
             )
         
-        # Prepare node configurations for executor
+        # Prepare node configurations for executor and create a mapping of node names to IDs
         node_configs = []
+        node_name_to_id_map: Dict[str, uuid.UUID] = {}
+        ordered_nodes = []  # Store nodes in order
+        
         for sn in strategy_nodes:
             node = node_repo.get_by_id(sn.node_id)
             if not node:
@@ -174,6 +177,10 @@ def execute_chain(
                 )
             # Use the node name as the identifier for the registry
             node_configs.append((node.name, sn.config))
+            # Store mapping of node name to database UUID
+            node_name_to_id_map[node.name] = node.id
+            # Store the node in order
+            ordered_nodes.append(node)
         
         # Execute the chain
         executor = ChainExecutor()
@@ -184,7 +191,7 @@ def execute_chain(
         )
         
         # Update the chain execution record
-        chain_execution.status = ExecutionStatus.SUCCESS.value if result.success else ExecutionStatus.FAILED.value
+        chain_execution.status = ExecutionStatus.SUCCESS if result.success else ExecutionStatus.FAILED
         chain_execution.output_text = result.output_data
         chain_execution.error = result.error
         chain_execution.execution_time_ms = result.execution_time_ms
@@ -192,19 +199,32 @@ def execute_chain(
         db.commit()
         
         # Create node execution records
-        for node_result in result.node_results:
-            node_exec = NodeExecution(
-                execution_id=chain_execution.id,
-                node_id=uuid.UUID(node_result.node_id),
-                input_text=node_result.input_data,
-                output_text=node_result.output_data,
-                error=node_result.error,
-                status=ExecutionStatus.SUCCESS.value if node_result.success else ExecutionStatus.FAILED.value,
-                execution_time_ms=node_result.execution_time_ms,
-                completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
-            )
-            db.add(node_exec)
-        db.commit()
+        # Don't rely on the node_id from the results, use the ordered nodes instead
+        node_executions = []
+        
+        # Assuming the order of nodes in the strategy matches the order of results
+        if len(result.node_results) == len(ordered_nodes):
+            for i, node_result in enumerate(result.node_results):
+                node = ordered_nodes[i]
+                node_exec = NodeExecution(
+                    execution_id=chain_execution.id,
+                    node_id=node.id,  # Use the actual UUID from the database
+                    input_text=node_result.input_data,
+                    output_text=node_result.output_data,
+                    error=node_result.error,
+                    status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
+                    execution_time_ms=node_result.execution_time_ms,
+                    completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
+                )
+                node_executions.append(node_exec)
+        else:
+            # If lengths don't match, log the issue
+            print(f"Warning: Node result count ({len(result.node_results)}) doesn't match strategy node count ({len(ordered_nodes)})")
+            
+        # Add all node executions in a single operation
+        if node_executions:
+            db.add_all(node_executions)
+            db.commit()
         
         # Create the response
         node_results = [
@@ -234,7 +254,7 @@ def execute_chain(
         
     except ChainProcessorError as e:
         # Update the chain execution record with the error
-        chain_execution.status = ExecutionStatus.FAILED.value
+        chain_execution.status = ExecutionStatus.FAILED
         chain_execution.error = str(e)
         chain_execution.completed_at = datetime.utcnow()
         db.commit()
@@ -245,7 +265,7 @@ def execute_chain(
         )
     except Exception as e:
         # Update the chain execution record with the error
-        chain_execution.status = ExecutionStatus.FAILED.value
+        chain_execution.status = ExecutionStatus.FAILED
         chain_execution.error = f"Unexpected error: {str(e)}"
         chain_execution.completed_at = datetime.utcnow()
         db.commit()
