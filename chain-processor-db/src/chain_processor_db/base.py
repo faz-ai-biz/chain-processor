@@ -28,6 +28,9 @@ convention = {
 # Create metadata with naming conventions
 chain_db_metadata = MetaData(naming_convention=convention)
 
+# Export metadata for backwards compatibility with Alembic environment
+metadata = chain_db_metadata
+
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
