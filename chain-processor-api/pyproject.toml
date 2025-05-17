@@ -11,11 +11,13 @@ requires-python = ">=3.13"
 license = { text = "MIT" }
 authors = [{ name = "Chain Processor Team" }]
 dependencies = [
-    "fastapi>=0.110.0",
-    "uvicorn[standard]>=0.28.0",
-    "chain-processor-core==0.1.0",
-    "chain-processor-db==0.1.0",
-    "pydantic>=2.11.0",
+    "fastapi>=0.68.0,<0.69.0",
+    "pydantic>=1.8.0,<2.0.0",
+    "pydantic[email]",
+    "uvicorn>=0.15.0,<0.16.0",
+    "chain-processor-core",
+    "chain-processor-db",
+    "argon2-cffi>=21.3.0,<22.0.0",
     "pydantic-settings>=2.0.0",
     "psycopg2-binary>=2.9.0",
 ]

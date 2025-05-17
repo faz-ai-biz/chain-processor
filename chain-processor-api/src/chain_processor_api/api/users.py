@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from typing import List
+from argon2 import PasswordHasher
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -21,7 +22,10 @@ def create_user(user_in: UserCreate, db: Session = Depends(get_db)) -> UserRead:
     if repo.get_by_email(user_in.email):
         raise HTTPException(status_code=400, detail="Email already registered")
 
-    password_hash = hashlib.sha256(user_in.password.encode()).hexdigest()
+    # Use Argon2 for secure password hashing
+    ph = PasswordHasher()
+    password_hash = ph.hash(user_in.password)
+    
     user = User(
         email=user_in.email,
         password_hash=password_hash,

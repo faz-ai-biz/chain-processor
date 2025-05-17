@@ -1,10 +1,12 @@
 from __future__ import annotations
 
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Generic, TypeVar
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, validator
+
+T = TypeVar('T')
 
 
 class UserCreate(BaseModel):
@@ -59,6 +61,14 @@ class AddNodeToChainRequest(BaseModel):
 
 class ChainExecuteRequest(BaseModel):
     input_text: str
+    
+    @validator('input_text')
+    def validate_input_text(cls, v):
+        if not v.strip():
+            raise ValueError("Input text cannot be empty")
+        if len(v) > 10000:  # Limit to 10,000 characters
+            raise ValueError("Input text too long (max 10,000 characters)")
+        return v
 
 
 class NodeExecutionResult(BaseModel):
@@ -81,3 +91,20 @@ class ChainExecuteResponse(BaseModel):
     started_at: datetime
     completed_at: Optional[datetime] = None
     node_results: List[NodeExecutionResult] = []
+
+
+class PaginatedResponse(BaseModel, Generic[T]):
+    """Generic pagination response."""
+    items: List[T]
+    total: int
+    page: int
+    size: int
+    pages: int
+    
+    @property
+    def has_next(self) -> bool:
+        return self.page < self.pages
+    
+    @property
+    def has_prev(self) -> bool:
+        return self.page > 1

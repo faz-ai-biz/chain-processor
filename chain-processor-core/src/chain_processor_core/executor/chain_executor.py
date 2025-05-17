@@ -6,6 +6,7 @@ This module provides the executor for running chain strategies.
 
 import time
 import uuid
+import re
 from typing import Dict, List, Optional, Any, Tuple, cast
 
 from ..lib_chains.registry import default_registry
@@ -55,6 +56,40 @@ class ChainExecutionResult:
 
 class ChainExecutor:
     """Executor for chain strategies."""
+    
+    def _sanitize_error_message(self, message: str) -> str:
+        """
+        Sanitize error messages to remove sensitive information.
+        
+        Args:
+            message: The error message to sanitize
+            
+        Returns:
+            Sanitized message
+        """
+        # Redact passwords, tokens, keys, credentials
+        patterns = [
+            # Password patterns
+            r'(?:password|passwd|pwd|pass)\s*[=:]\s*[^\s,;]+',
+            # API keys and tokens
+            r'(?:api[-_]?key|token|secret|access[-_]?key)\s*[=:]\s*[^\s,;]+',
+            # Connection strings
+            r'(?:connection[-_]?string|conn[-_]?str)\s*[=:]\s*[^\s,;]+',
+            # Authentication headers
+            r'(?:authorization|auth)\s*[=:]\s*[^\s,;]+',
+            # JWT tokens
+            r'(?:bearer|jwt)\s+[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+',
+            # Basic auth
+            r'basic\s+[A-Za-z0-9+/=]+',
+            # URLs with credentials
+            r'(?:https?|ftp|sftp)://[^:]+:[^@]+@',
+        ]
+        
+        sanitized = message
+        for pattern in patterns:
+            sanitized = re.sub(pattern, '[REDACTED]', sanitized, flags=re.IGNORECASE)
+        
+        return sanitized
     
     def execute_chain(
         self, 
@@ -111,8 +146,8 @@ class ChainExecutor:
                     
                 except Exception as e:
                     # If node execution fails, record the error
-                    node_result.error = str(e)
-                    raise ChainProcessorError(f"Node '{node_id}' execution failed: {e}")
+                    node_result.error = self._sanitize_error_message(str(e))
+                    raise ChainProcessorError(f"Node '{node_id}' execution failed: {self._sanitize_error_message(str(e))}")
                 finally:
                     # Add the node result to the list
                     node_results.append(node_result)

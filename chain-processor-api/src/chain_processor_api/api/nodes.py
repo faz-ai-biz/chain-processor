@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 import uuid
+import math
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
@@ -13,19 +14,19 @@ from chain_processor_db.models.node import Node
 from chain_processor_db.repositories.node_repo import NodeRepository
 from chain_processor_core.lib_chains.registry import default_registry
 
-from ..schemas import NodeRead
+from ..schemas import NodeRead, PaginatedResponse
 
 
 router = APIRouter(prefix="/nodes", tags=["nodes"])
 
 
-@router.get("/", response_model=List[NodeRead])
+@router.get("/", response_model=PaginatedResponse[NodeRead])
 def list_nodes(
     tag: Optional[str] = None,
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db)
-) -> List[NodeRead]:
+) -> PaginatedResponse[NodeRead]:
     """
     List all nodes, optionally filtered by tag.
     
@@ -36,16 +37,25 @@ def list_nodes(
         db: Database session
         
     Returns:
-        List of nodes
+        Paginated list of nodes
     """
     repo = NodeRepository(db)
     
+    # Get total count
+    total = repo.count(tag=tag)
+    
+    # Calculate pagination values
+    page = (offset // limit) + 1
+    total_pages = math.ceil(total / limit) if total > 0 else 1
+    
+    # Get paginated results
     if tag:
         nodes = repo.get_by_tag(tag, limit=limit, offset=offset)
     else:
         nodes = repo.get_all(limit=limit, offset=offset)
     
-    return [
+    # Convert to response model
+    items = [
         NodeRead(
             id=n.id,
             name=n.name,
@@ -55,6 +65,15 @@ def list_nodes(
         )
         for n in nodes
     ]
+    
+    # Create pagination response
+    return PaginatedResponse[NodeRead](
+        items=items,
+        total=total,
+        page=page,
+        size=limit,
+        pages=total_pages
+    )
 
 
 @router.get("/available", response_model=List[str])
