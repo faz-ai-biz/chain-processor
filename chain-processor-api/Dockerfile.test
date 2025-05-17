@@ -1,0 +1,25 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install PostgreSQL client for psycopg2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    netcat-traditional \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install project with dev dependencies
+COPY pyproject.toml README.md ./
+RUN pip install --no-cache-dir .[dev] psycopg2-binary
+
+# Copy test files
+COPY tests/ tests/
+COPY src/ src/
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+CMD ["pytest", "-xvs"]
