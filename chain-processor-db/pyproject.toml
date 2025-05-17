@@ -67,3 +67,5 @@ plugins = ["sqlalchemy.ext.mypy.plugin"]
 minversion = "7.4"
 testpaths = ["tests"]
 python_files = "test_*.py" 
+[tool.hatch.build.targets.wheel]
+packages = ["src/chain_processor_db"]

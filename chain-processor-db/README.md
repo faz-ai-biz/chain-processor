@@ -46,6 +46,29 @@ export DATABASE_MAX_OVERFLOW=20
 
 Or create a `.env` file in the project root with these variables.
 
+### Environment Variables
+
+Copy the example environment file:
+
+```bash
+# Create a local .env file (ignored by git)
+cat << EOF > .env
+# Database connection
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chain_processor
+DATABASE_POOL_SIZE=10
+DATABASE_MAX_OVERFLOW=20
+
+# For testing
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5433/chain_processor_test
+EOF
+```
+
+These environment variables control:
+- `DATABASE_URL`: Connection string for the main database
+- `DATABASE_POOL_SIZE`: Number of connections to keep in the pool
+- `DATABASE_MAX_OVERFLOW`: Maximum number of connections above pool size
+- `TEST_DATABASE_URL`: Connection string for the test database
+
 ## Migration Management
 
 To run database migrations:
@@ -62,15 +85,43 @@ alembic revision --autogenerate -m "description of changes"
 
 ### Running Tests
 
+#### Using Docker
+
+The simplest way to run tests is using Docker, which eliminates the need to configure a PostgreSQL database locally:
+
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
+# Make the script executable if it's not already
+chmod +x scripts/run_tests.sh
+
+# Run all tests
+./scripts/run_tests.sh
+
+# Run specific tests
+./scripts/run_tests.sh tests/unit/test_repositories
+```
+
+This will:
+1. Start a PostgreSQL container for testing
+2. Run the tests against that database
+3. Clean up the containers afterward
+
+#### Running Tests Locally
+
+If you prefer to run tests without Docker, you'll need to:
+
+1. Start a PostgreSQL instance for testing
+2. Set the `TEST_DATABASE_URL` environment variable
+3. Run pytest
+
+```bash
+# Start PostgreSQL (you can also use the docker-compose.yml file)
+docker-compose up -d postgres
+
+# Set the database URL
+export TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/chain_processor_test
 
 # Run tests
 pytest
-
-# Run tests with coverage
-pytest --cov=chain_processor_db
 ```
 
 ### Code Style
@@ -154,4 +205,60 @@ The database engine is configured with connection pooling to efficiently manage 
 
 ## Database Schema
 
-For a detailed description of the database schema, see the [schema documentation](docs/schema/database_schema.md). 
+For a detailed description of the database schema, see the [schema documentation](docs/schema/database_schema.md).
+
+## Development with Docker
+
+For local development, you can use Docker Compose to start a PostgreSQL database and pgAdmin interface:
+
+```bash
+# Start the development environment
+docker-compose up -d
+
+# Access pgAdmin at http://localhost:5050
+# - Email: admin@example.com
+# - Password: admin
+```
+
+The PostgreSQL server will be accessible at:
+- Host: localhost
+- Port: 5432
+- User: postgres
+- Password: postgres
+- Database: chain_processor 
+
+### Using the Makefile
+
+A Makefile is provided for common development tasks:
+
+```bash
+# Setup development environment
+make setup
+
+# Run tests
+make test
+
+# Run tests with Docker
+make test-docker
+
+# Run tests with coverage
+make test-cov
+
+# Run linting
+make lint
+
+# Format code
+make format
+
+# Run database migrations
+make migrate
+
+# Start development environment
+make dev
+
+# Stop and clean development environment
+make clean
+
+# Create a new migration (will prompt for description)
+make migration
+``` 

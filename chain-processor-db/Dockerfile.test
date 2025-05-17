@@ -1,0 +1,26 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Install PostgreSQL client for psycopg2
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    python3-dev \
+    libpq-dev \
+    netcat-traditional \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install pytest and PostgreSQL libraries
+RUN pip install --no-cache-dir pytest pytest-asyncio sqlalchemy psycopg2-binary alembic
+
+# Copy test files
+COPY tests/ tests/
+COPY src/ src/
+COPY alembic/ alembic/
+COPY alembic.ini .
+
+# Set Python path
+ENV PYTHONPATH=/app
+
+CMD ["pytest", "-xvs"]
