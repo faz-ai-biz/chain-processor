@@ -8,23 +8,36 @@ and configuring the database connection.
 import os
 from typing import AsyncGenerator, Generator, Optional
 
+from dotenv import load_dotenv
 from sqlalchemy import create_engine, Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import QueuePool
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from .base import chain_db_metadata as metadata
-from chain_processor_api.core.config import settings
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 def get_connection_url() -> str:
     """Get the database connection URL from environment variables."""
     db_url = os.environ.get("DATABASE_URL")
     if not db_url:
-        raise ValueError(
-            "DATABASE_URL environment variable is not set. "
-            "Please set it to a valid PostgreSQL connection string."
-        )
+        # Default connection URL if not set in environment
+        db_url = "postgresql://postgres:postgres@localhost:5432/chain_processor"
+        
+        # Override with environment-specific connection for Docker
+        db_host = os.environ.get("POSTGRES_HOST", "localhost")
+        db_port = os.environ.get("POSTGRES_PORT", "5432")
+        db_user = os.environ.get("POSTGRES_USER", "postgres")
+        db_password = os.environ.get("POSTGRES_PASSWORD", "postgres")
+        db_name = os.environ.get("POSTGRES_DB", "chain_processor")
+        
+        # Build connection string if any custom env vars are set
+        if os.environ.get("POSTGRES_HOST") or os.environ.get("POSTGRES_USER"):
+            db_url = f"postgresql://{db_user}:{db_password}@{db_host}:{db_port}/{db_name}"
+    
     return db_url
 
 

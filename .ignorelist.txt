@@ -1,3 +1,9 @@
+# clear && grep -Evf <(grep -Ev '^\s*$|^\s*#' .ignorelist.txt) < <(find . -type f) |
+# while IFS= read -r file; do
+#  printf '%s\n' "$file"
+#  cat -- "$file"
+# done
+
 .pyc
 .venv/
 .db

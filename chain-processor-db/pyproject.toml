@@ -20,6 +20,7 @@ dependencies = [
     "alembic>=1.13.0,<2.0.0",
     "pydantic>=2.11.0",
     "typing-extensions>=4.9.0",
+    "python-dotenv>=0.21.0",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
