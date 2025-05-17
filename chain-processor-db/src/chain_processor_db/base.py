@@ -26,13 +26,13 @@ convention = {
 }
 
 # Create metadata with naming conventions
-db_metadata = MetaData(naming_convention=convention)
+chain_db_metadata = MetaData(naming_convention=convention)
 
 
 class Base(DeclarativeBase):
     """Base class for all SQLAlchemy models."""
 
-    metadata = db_metadata
+    metadata = chain_db_metadata # Explicitly associate metadata
     type_annotation_map: ClassVar[Dict[Any, Any]] = {
         uuid.UUID: UUID(as_uuid=True),
     }
