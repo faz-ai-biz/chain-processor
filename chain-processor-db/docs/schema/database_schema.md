@@ -1,6 +1,9 @@
 # Chain Processor DB - Database Schema
 
 This document describes the database schema for the Chain Processing System.
+ORM models expose JSONB columns named `metadata` using the attribute
+`metadata_json` to avoid conflicts with SQLAlchemy's reserved `metadata`
+attribute.
 
 ## Entity Relationship Diagram
 
