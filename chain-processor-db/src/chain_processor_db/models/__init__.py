@@ -5,7 +5,8 @@ This package contains the SQLAlchemy ORM models that map to the
 database tables used by the Chain Processing System.
 """
 
-from .base import Base, metadata
+from ..base import db_metadata as metadata
+from .base import Base
 from .user import User
 from .chain import ChainStrategy, StrategyNode
 from .node import Node
