@@ -1,0 +1,17 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+# Copy all packages
+COPY chain-processor-core /app/chain-processor-core
+COPY chain-processor-db /app/chain-processor-db
+
+# First, install core without dependencies
+RUN cd /app/chain-processor-core && pip install --no-deps -e .
+
+# Then, install db with all dependencies except core (which is already installed)
+RUN cd /app/chain-processor-db && pip install --no-deps -e .
+
+# Install all dependencies of both packages
+RUN cd /app/chain-processor-core && pip install -e .
+RUN cd /app/chain-processor-db && pip install --no-dependencies-check -e . 

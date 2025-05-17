@@ -19,9 +19,17 @@ services:
     networks:
       - chain-processor-network
 
+  # Base image with shared libraries
+  base:
+    build:
+      context: .
+      dockerfile: Dockerfile.base
+    image: core-chain-nlp-base:latest
+    profiles: ["build-only"]
+
   # API service
   api:
-    build:
+    build: 
       context: .
       dockerfile: ./chain-processor-api/Dockerfile
     container_name: chain-processor-api
@@ -31,6 +39,8 @@ services:
     ports:
       - "8000:8000"
     depends_on:
+      base:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     networks:
@@ -45,8 +55,12 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/chain_processor
     depends_on:
-      - api
-      - postgres
+      base:
+        condition: service_completed_successfully
+      api:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     networks:
       - chain-processor-network
 
