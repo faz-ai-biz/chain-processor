@@ -132,6 +132,11 @@ class NodeRegistry:
         Raises:
             NodeNotFoundError: If the node is not found
         """
+        # Try with explicit namespace
+        if name.startswith("class:") or name.startswith("func:"):
+            if name in self._nodes:
+                return self._nodes[name]
+        
         # Try class namespace first
         class_key = f"class:{name}"
         if class_key in self._nodes:

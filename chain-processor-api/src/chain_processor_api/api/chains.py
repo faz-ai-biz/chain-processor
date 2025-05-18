@@ -297,24 +297,26 @@ def execute_chain(
     except ChainProcessorError as e:
         # Update the chain execution record with the error
         logger.error(f"Chain processor error: {str(e)}")
-        chain_execution.status = ExecutionStatus.FAILED
-        chain_execution.error = str(e)
-        chain_execution.completed_at = datetime.utcnow()
-        db.commit()
-        
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e),
-        )
+        try:
+            with db.begin_nested():
+                chain_execution.status = ExecutionStatus.FAILED
+                chain_execution.error = str(e)
+                chain_execution.completed_at = datetime.utcnow()
+        finally:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e),
+            )
     except Exception as e:
         # Update the chain execution record with the error
         logger.exception(f"Unexpected error: {str(e)}")
-        chain_execution.status = ExecutionStatus.FAILED
-        chain_execution.error = f"Unexpected error: {str(e)}"
-        chain_execution.completed_at = datetime.utcnow()
-        db.commit()
-        
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {str(e)}",
-        )
+        try:
+            with db.begin_nested():
+                chain_execution.status = ExecutionStatus.FAILED
+                chain_execution.error = f"Unexpected error: {str(e)}"
+                chain_execution.completed_at = datetime.utcnow()
+        finally:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"An unexpected error occurred: {str(e)}",
+            )

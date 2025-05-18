@@ -33,9 +33,18 @@ class NodeExecutionResult:
         self.node_name = node_name
         self.input_data = input_data
         self.output_data = output_data
-        self.error = error
+        self._error = error
         self.execution_time_ms = execution_time_ms
         self.success = error is None
+    
+    @property
+    def error(self) -> Optional[str]:
+        return self._error
+    
+    @error.setter
+    def error(self, value: Optional[str]):
+        self._error = value
+        self.success = value is None
 
 
 class ChainExecutionResult:
@@ -192,7 +201,6 @@ class ChainExecutor:
                     error_msg = self._sanitize_error_message(str(e))
                     logger.error(f"Node execution failed: {error_msg}")
                     node_result.error = error_msg
-                    node_result.success = False  # Update success flag when setting error
                     raise ChainProcessorError(f"Node '{node_name}' execution failed: {error_msg}")
                 finally:
                     # Add the node result to the list

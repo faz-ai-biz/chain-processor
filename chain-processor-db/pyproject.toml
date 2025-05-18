@@ -7,7 +7,7 @@ name = "chain-processor-db"
 version = "0.1.0"
 description = "Database migrations and models for the Chain Processing System"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [
     { name = "Chain Processor Team" },
@@ -27,7 +27,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
 ]
 
 [project.optional-dependencies]
@@ -42,17 +43,17 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py313"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "B", "I"]
 
 [tool.black]
 line-length = 88
-target-version = ["py313"]
+target-version = ["py311"]
 
 [tool.mypy]
-python_version = "3.13"
+python_version = "3.11"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 check_untyped_defs = true
