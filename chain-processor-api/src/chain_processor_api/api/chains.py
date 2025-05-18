@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Dict
 from datetime import datetime
 import uuid
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -27,6 +28,7 @@ from ..schemas import (
 )
 
 router = APIRouter(prefix="/chains", tags=["chains"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("/", response_model=ChainRead)
@@ -130,18 +132,22 @@ def execute_chain(
     execution_repo = ExecutionRepository(db)
     node_repo = NodeRepository(db)
     
+    logger.info(f"Executing chain {chain_id} with input: {request.input_text[:50]}...")
+    
     # Use database locking to prevent race conditions
     chain = db.query(ChainStrategy).with_for_update().filter(
         ChainStrategy.id == chain_id
     ).first()
     
     if not chain:
+        logger.error(f"Chain with ID {chain_id} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Chain with ID {chain_id} not found",
         )
     
     if not chain.is_active:
+        logger.error(f"Chain with ID {chain_id} is not active")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Chain with ID {chain_id} is not active",
@@ -193,11 +199,19 @@ def execute_chain(
         
         # Execute the chain
         executor = ChainExecutor()
-        result = executor.execute_chain(
-            chain_id=str(chain_id),
-            input_data=request.input_text,
-            node_configs=node_configs
-        )
+        logger.info(f"Executing chain with {len(node_configs)} nodes: {[name for name, _ in node_configs]}")
+        try:
+            result = executor.execute_chain(
+                chain_id=str(chain_id),
+                input_data=request.input_text,
+                node_configs=node_configs
+            )
+            logger.info(f"Chain execution completed. Success: {result.success}")
+            if not result.success:
+                logger.error(f"Chain execution failed: {result.error}")
+        except Exception as e:
+            logger.exception(f"Exception during chain execution: {str(e)}")
+            raise
         
         # Update the chain execution record
         chain_execution.status = ExecutionStatus.SUCCESS if result.success else ExecutionStatus.FAILED
@@ -218,7 +232,7 @@ def execute_chain(
                 node_exec = NodeExecution(
                     execution_id=chain_execution.id,
                     node_id=node_result.node_id,  # Use UUID directly
-                    input_text=node_result.input_text,
+                    input_text=node_result.input_data,  # Use input_data instead of input_text
                     output_text=node_result.output_data,
                     error=node_result.error,
                     status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
@@ -253,7 +267,7 @@ def execute_chain(
             NodeExecutionResult(
                 node_id=nr.node_id,
                 node_name=nr.node_name,
-                input_text=nr.input_text,
+                input_text=nr.input_data,  # Use input_data instead of input_text
                 output_text=nr.output_data,
                 error=nr.error,
                 execution_time_ms=nr.execution_time_ms,
@@ -277,6 +291,7 @@ def execute_chain(
         
     except ChainProcessorError as e:
         # Update the chain execution record with the error
+        logger.error(f"Chain processor error: {str(e)}")
         chain_execution.status = ExecutionStatus.FAILED
         chain_execution.error = str(e)
         chain_execution.completed_at = datetime.utcnow()
@@ -288,6 +303,7 @@ def execute_chain(
         )
     except Exception as e:
         # Update the chain execution record with the error
+        logger.exception(f"Unexpected error: {str(e)}")
         chain_execution.status = ExecutionStatus.FAILED
         chain_execution.error = f"Unexpected error: {str(e)}"
         chain_execution.completed_at = datetime.utcnow()

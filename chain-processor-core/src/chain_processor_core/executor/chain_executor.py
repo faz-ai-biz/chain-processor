@@ -7,11 +7,14 @@ This module provides the executor for running chain strategies.
 import time
 import uuid
 import re
+import logging
 from typing import Dict, List, Optional, Any, Tuple, cast
 
 from ..lib_chains.registry import default_registry
 from ..lib_chains.base import ChainNode, TextChainNode
 from ..exceptions.errors import ChainProcessorError, NodeNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 class NodeExecutionResult:
@@ -104,6 +107,14 @@ class ChainExecutor:
         Returns:
             UUID for the node
         """
+        # Use the registry to get the UUID if possible
+        try:
+            uuid_from_registry = default_registry.get_node_uuid(node_name)
+            logger.debug(f"Using UUID from registry for {node_name}: {uuid_from_registry}")
+            return uuid_from_registry
+        except Exception as e:
+            logger.warning(f"Error getting UUID from registry for {node_name}: {str(e)}")
+            
         # Generate a deterministic UUID from the name
         # This ensures consistency across executions
         namespace = uuid.UUID('9e5d3eaa-f5c8-4d03-956d-17f455189c27')  # Fixed namespace for nodes
@@ -129,6 +140,7 @@ class ChainExecutor:
         Raises:
             ChainProcessorError: If execution fails
         """
+        logger.info(f"Starting chain execution for chain {chain_id}")
         chain_start_time = time.time()
         node_results: List[NodeExecutionResult] = []
         current_data = input_data
@@ -138,6 +150,7 @@ class ChainExecutor:
             for node_name, config in node_configs:
                 # Generate UUID for this node
                 node_uuid = self.get_node_uuid(node_name)
+                logger.debug(f"Generated UUID for node {node_name}: {node_uuid}")
                 
                 # Create a node execution result object
                 node_result = NodeExecutionResult(
@@ -149,18 +162,25 @@ class ChainExecutor:
                 try:
                     # Get the node
                     node_start_time = time.time()
+                    logger.debug(f"Getting node instance for {node_name}")
                     
                     # Get the node instance from the registry
                     try:
                         node = default_registry.get_node_instance(node_name, **config)
+                        logger.debug(f"Got node instance: {type(node).__name__}")
                     except NodeNotFoundError:
+                        logger.error(f"Node '{node_name}' not found in registry")
                         raise NodeNotFoundError(f"Node '{node_name}' not found in registry")
                     
                     # Process the data
+                    logger.debug(f"Processing data with node {node_name}")
                     result = node.process(current_data)
                     if not isinstance(result, str):
-                        raise TypeError(f"Node '{node_name}' returned {type(result)}, expected str")
+                        error_msg = f"Node '{node_name}' returned {type(result)}, expected str"
+                        logger.error(error_msg)
+                        raise TypeError(error_msg)
                     current_data = result
+                    logger.debug(f"Node {node_name} processed data successfully")
                     
                     # Update node result
                     node_execution_time = int((time.time() - node_start_time) * 1000)
@@ -169,15 +189,18 @@ class ChainExecutor:
                     
                 except Exception as e:
                     # If node execution fails, record the error
-                    node_result.error = self._sanitize_error_message(str(e))
+                    error_msg = self._sanitize_error_message(str(e))
+                    logger.error(f"Node execution failed: {error_msg}")
+                    node_result.error = error_msg
                     node_result.success = False  # Update success flag when setting error
-                    raise ChainProcessorError(f"Node '{node_name}' execution failed: {self._sanitize_error_message(str(e))}")
+                    raise ChainProcessorError(f"Node '{node_name}' execution failed: {error_msg}")
                 finally:
                     # Add the node result to the list
                     node_results.append(node_result)
             
             # Calculate total execution time
             chain_execution_time = int((time.time() - chain_start_time) * 1000)
+            logger.info(f"Chain execution completed successfully in {chain_execution_time}ms")
             
             # Return successful result
             return ChainExecutionResult(
@@ -191,11 +214,13 @@ class ChainExecutor:
         except Exception as e:
             # If chain execution fails, return error result
             chain_execution_time = int((time.time() - chain_start_time) * 1000)
+            error_msg = self._sanitize_error_message(str(e))
+            logger.error(f"Chain execution failed: {error_msg}")
             
             return ChainExecutionResult(
                 chain_id=chain_id,
                 input_data=input_data,
-                error=str(e),
+                error=error_msg,
                 execution_time_ms=chain_execution_time,
                 node_results=node_results
             ) 
