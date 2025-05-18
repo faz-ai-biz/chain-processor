@@ -221,25 +221,30 @@ def execute_chain(
         chain_execution.completed_at = datetime.utcnow()
         
         # Create node execution records
-        # Don't rely on the node_id from the results, use the ordered nodes instead
         node_executions = []
         
-        # Assuming the order of nodes in the strategy matches the order of results
+        # Process each node result
         if len(result.node_results) == len(ordered_nodes):
             for i, node_result in enumerate(result.node_results):
-                # NodeExecutionResult now includes both node_id (UUID) and node_name (str)
-                # We can use the node_id directly as it's already a UUID
-                node_exec = NodeExecution(
-                    execution_id=chain_execution.id,
-                    node_id=node_result.node_id,  # Use UUID directly
-                    input_text=node_result.input_data,  # Use input_data instead of input_text
-                    output_text=node_result.output_data,
-                    error=node_result.error,
-                    status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
-                    execution_time_ms=node_result.execution_time_ms,
-                    completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
-                )
-                node_executions.append(node_exec)
+                # We need to use the actual database node ID from our mapping, not the one from ChainExecutor
+                node_name = node_result.node_name
+                if node_name in node_name_to_id_map:
+                    node_db_id = node_name_to_id_map[node_name]
+                    logger.info(f"Using DB ID for node {node_name}: {node_db_id}")
+                    
+                    node_exec = NodeExecution(
+                        execution_id=chain_execution.id,
+                        node_id=node_db_id,  # Use the actual database ID
+                        input_text=node_result.input_data,
+                        output_text=node_result.output_data,
+                        error=node_result.error,
+                        status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
+                        execution_time_ms=node_result.execution_time_ms,
+                        completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
+                    )
+                    node_executions.append(node_exec)
+                else:
+                    logger.error(f"Node name {node_name} not found in node_name_to_id_map")
         else:
             # If lengths don't match, log the issue and fail explicitly
             error_msg = f"Node result count mismatch: {len(result.node_results)} vs {len(ordered_nodes)}"
