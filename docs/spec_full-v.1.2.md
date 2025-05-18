@@ -22,7 +22,7 @@ This document defines functional and non-functional requirements, preconditions,
 | Area | Requirement |
 |------|-------------|
 | OS (containers) | Debian 12 / Alpine 3.20 |
-| Python | ≥ 3.13.0 |
+| Python | ≥ 3.11 |
 | Node.js | ≥ 20.11 LTS |
 | PostgreSQL | 14.x |
 | Docker | ≥ 24.0, BuildKit enabled |

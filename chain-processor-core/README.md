@@ -154,7 +154,7 @@ git clone https://github.com/chain-processor-org/chain-processor-core.git
 cd chain-processor-core
 ```
 
-2. Set up a virtual environment (requires Python 3.13+):
+2. Set up a virtual environment (requires Python 3.11+):
 
 ```bash
 python -m venv venv
