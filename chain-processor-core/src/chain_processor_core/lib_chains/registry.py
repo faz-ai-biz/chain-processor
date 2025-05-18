@@ -8,9 +8,12 @@ looked up by name and metadata.
 from typing import Dict, List, Type, Optional, Callable, Any, Set
 import inspect
 import uuid
+import logging
 
 from .base import ChainNode, TextChainNode, FunctionNode
 from ..exceptions.errors import NodeLoadError, NodeNotFoundError
+
+logger = logging.getLogger(__name__)
 
 
 class NodeRegistry:
@@ -190,7 +193,7 @@ class NodeRegistry:
         except Exception as e:
             raise NodeLoadError(f"Failed to instantiate node '{name}': {e}")
 
-    def get_node_uuid(self, name: str) -> uuid.UUID:
+    def get_node_uuid(self, node_name: str) -> uuid.UUID:
         """
         Get the UUID for a node by name.
         
@@ -200,23 +203,32 @@ class NodeRegistry:
         Returns:
             UUID for the node
         """
-        # Try class namespace first
-        class_key = f"class:{name}"
-        if class_key in self._node_uuids:
-            return self._node_uuids[class_key]
-            
-        # Try function namespace second
-        func_key = f"func:{name}"
-        if func_key in self._node_uuids:
-            return self._node_uuids[func_key]
-            
-        # For backward compatibility, try without namespace
-        if name in self._node_uuids:
-            return self._node_uuids[name]
-            
-        # Generate a deterministic UUID if not found
+        # Try existing lookups first
+        for key in [f"class:{node_name}", f"func:{node_name}", node_name]:
+            if key in self._node_uuids:
+                return self._node_uuids[key]
+        
+        # Generate a deterministic UUID
         namespace = uuid.UUID('9e5d3eaa-f5c8-4d03-956d-17f455189c27')
-        return uuid.uuid5(namespace, name)
+        generated_uuid = uuid.uuid5(namespace, node_name)
+        
+        # Check if this UUID already exists with a different name
+        reverse_lookup = {str(id): name for name, id in self._node_uuids.items()}
+        if str(generated_uuid) in reverse_lookup:
+            conflicting_name = reverse_lookup[str(generated_uuid)]
+            logger.warning(
+                f"UUID collision: {node_name} and {conflicting_name} "
+                f"would both generate {generated_uuid}"
+            )
+            # Create a unique namespaced UUID by adding a suffix
+            suffix = 0
+            while str(generated_uuid) in reverse_lookup:
+                suffix += 1
+                generated_uuid = uuid.uuid5(namespace, f"{node_name}_{suffix}")
+        
+        # Store this mapping for future lookups
+        self._node_uuids[node_name] = generated_uuid
+        return generated_uuid
 
     def list_nodes(self, tag: Optional[str] = None) -> List[str]:
         """

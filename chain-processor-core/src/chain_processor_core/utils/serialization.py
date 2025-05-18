@@ -38,7 +38,10 @@ class CustomJSONEncoder(json.JSONEncoder):
         if isinstance(obj, Enum):
             return obj.value
         if isinstance(obj, BaseModel):
-            return obj.model_dump()
+            # Use Pydantic's model_dump_json then parse it back
+            # This handles all the edge cases correctly
+            import json
+            return json.loads(obj.model_dump_json())
         return super().default(obj)
 
 

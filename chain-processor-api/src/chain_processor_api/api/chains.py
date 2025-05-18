@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import List, Dict
+from typing import List, Dict, Tuple
 from datetime import datetime
 import uuid
 import logging
+from contextlib import contextmanager
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -29,6 +30,17 @@ from ..schemas import (
 
 router = APIRouter(prefix="/chains", tags=["chains"])
 logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def safe_transaction(db_session):
+    """Context manager for safely handling transactions."""
+    try:
+        yield
+        db_session.commit()
+    except Exception as e:
+        db_session.rollback()
+        raise e
 
 
 @router.post("/", response_model=ChainRead)
@@ -168,10 +180,10 @@ def execute_chain(
         ).order_by(StrategyNode.position).all()
         
         if not strategy_nodes:
-            chain_execution.status = ExecutionStatus.FAILED
-            chain_execution.error = f"Chain with ID {chain_id} has no nodes"
-            chain_execution.completed_at = datetime.utcnow()
-            db.commit()
+            with safe_transaction(db):
+                chain_execution.status = ExecutionStatus.FAILED
+                chain_execution.error = f"Chain with ID {chain_id} has no nodes"
+                chain_execution.completed_at = datetime.utcnow()
             
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -180,10 +192,10 @@ def execute_chain(
         
         # Prepare node configurations for executor and create a mapping of node names to IDs
         node_configs = []
-        node_name_to_id_map: Dict[str, uuid.UUID] = {}
+        node_name_to_id_map: Dict[Tuple[str, int], uuid.UUID] = {}
         ordered_nodes = []  # Store nodes in order
         
-        for sn in strategy_nodes:
+        for i, sn in enumerate(strategy_nodes):
             node = node_repo.get_by_id(sn.node_id)
             if not node:
                 raise HTTPException(
@@ -192,8 +204,8 @@ def execute_chain(
                 )
             # Use the node name as the identifier for the registry
             node_configs.append((node.name, sn.config))
-            # Store mapping of node name to database UUID
-            node_name_to_id_map[node.name] = node.id
+            # Store mapping of node name to database UUID with position to ensure uniqueness
+            node_name_to_id_map[(node.name, sn.position)] = node.id
             # Store the node in order
             ordered_nodes.append(node)
         
@@ -226,35 +238,54 @@ def execute_chain(
         # Process each node result
         if len(result.node_results) == len(ordered_nodes):
             for i, node_result in enumerate(result.node_results):
-                # We need to use the actual database node ID from our mapping, not the one from ChainExecutor
+                # Look up the node in our mapping using position information
                 node_name = node_result.node_name
-                if node_name in node_name_to_id_map:
-                    node_db_id = node_name_to_id_map[node_name]
+                node_key = None
+                for position in range(len(ordered_nodes)):
+                    if (node_name, position) in node_name_to_id_map:
+                        node_key = (node_name, position)
+                        break
+                
+                if node_key:
+                    node_db_id = node_name_to_id_map[node_key]
                     logger.info(f"Using DB ID for node {node_name}: {node_db_id}")
                     
                     node_exec = NodeExecution(
                         execution_id=chain_execution.id,
                         node_id=node_db_id,  # Use the actual database ID
-                        input_text=node_result.input_data,
-                        output_text=node_result.output_data,
+                        input_text=node_result.input_text,
+                        output_text=node_result.output_text,
                         error=node_result.error,
                         status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
                         execution_time_ms=node_result.execution_time_ms,
-                        completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
+                        completed_at=datetime.utcnow() if node_result.output_text or node_result.error else None
                     )
                     node_executions.append(node_exec)
                 else:
-                    logger.error(f"Node name {node_name} not found in node_name_to_id_map")
+                    error_msg = f"Node name {node_name} not found in node_name_to_id_map"
+                    logger.error(error_msg)
+                    
+                    # Update chain execution
+                    with safe_transaction(db):
+                        chain_execution.status = ExecutionStatus.FAILED
+                        chain_execution.error = error_msg
+                        chain_execution.completed_at = datetime.utcnow()
+                    
+                    # Return error response
+                    raise HTTPException(
+                        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                        detail=f"Internal processing error: {error_msg}"
+                    )
         else:
             # If lengths don't match, log the issue and fail explicitly
             error_msg = f"Node result count mismatch: {len(result.node_results)} vs {len(ordered_nodes)}"
             print(f"Error: {error_msg}")
             
             # Update chain execution
-            chain_execution.status = ExecutionStatus.FAILED
-            chain_execution.error = error_msg
-            chain_execution.completed_at = datetime.utcnow()
-            db.commit()
+            with safe_transaction(db):
+                chain_execution.status = ExecutionStatus.FAILED
+                chain_execution.error = error_msg
+                chain_execution.completed_at = datetime.utcnow()
             
             # Return error response
             raise HTTPException(
@@ -272,8 +303,8 @@ def execute_chain(
             NodeExecutionResult(
                 node_id=nr.node_id,
                 node_name=nr.node_name,
-                input_text=nr.input_data,  # Use input_data instead of input_text
-                output_text=nr.output_data,
+                input_text=nr.input_text,
+                output_text=nr.output_text,
                 error=nr.error,
                 execution_time_ms=nr.execution_time_ms,
                 success=nr.success
@@ -297,26 +328,24 @@ def execute_chain(
     except ChainProcessorError as e:
         # Update the chain execution record with the error
         logger.error(f"Chain processor error: {str(e)}")
-        try:
-            with db.begin_nested():
-                chain_execution.status = ExecutionStatus.FAILED
-                chain_execution.error = str(e)
-                chain_execution.completed_at = datetime.utcnow()
-        finally:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(e),
-            )
+        with safe_transaction(db):
+            chain_execution.status = ExecutionStatus.FAILED
+            chain_execution.error = str(e)
+            chain_execution.completed_at = datetime.utcnow()
+        
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        )
     except Exception as e:
         # Update the chain execution record with the error
         logger.exception(f"Unexpected error: {str(e)}")
-        try:
-            with db.begin_nested():
-                chain_execution.status = ExecutionStatus.FAILED
-                chain_execution.error = f"Unexpected error: {str(e)}"
-                chain_execution.completed_at = datetime.utcnow()
-        finally:
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"An unexpected error occurred: {str(e)}",
-            )
+        with safe_transaction(db):
+            chain_execution.status = ExecutionStatus.FAILED
+            chain_execution.error = f"Unexpected error: {str(e)}"
+            chain_execution.completed_at = datetime.utcnow()
+        
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}",
+        )

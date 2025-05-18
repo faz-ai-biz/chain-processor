@@ -10,3 +10,6 @@
 .git/
 .coverage
 spec_full-v.1.2.md
+.lock
+.md
+.json

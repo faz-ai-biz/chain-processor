@@ -24,15 +24,15 @@ class NodeExecutionResult:
         self,
         node_id: uuid.UUID,
         node_name: str,
-        input_data: str,
-        output_data: Optional[str] = None,
+        input_text: str,
+        output_text: Optional[str] = None,
         error: Optional[str] = None,
         execution_time_ms: Optional[int] = None
     ):
         self.node_id = node_id
         self.node_name = node_name
-        self.input_data = input_data
-        self.output_data = output_data
+        self.input_text = input_text
+        self.output_text = output_text
         self._error = error
         self.execution_time_ms = execution_time_ms
         self.success = error is None
@@ -45,6 +45,15 @@ class NodeExecutionResult:
     def error(self, value: Optional[str]):
         self._error = value
         self.success = value is None
+    
+    # For backward compatibility
+    @property
+    def input_data(self) -> str:
+        return self.input_text
+        
+    @property
+    def output_data(self) -> Optional[str]:
+        return self.output_text
 
 
 class ChainExecutionResult:
@@ -121,8 +130,12 @@ class ChainExecutor:
             uuid_from_registry = default_registry.get_node_uuid(node_name)
             logger.debug(f"Using UUID from registry for {node_name}: {uuid_from_registry}")
             return uuid_from_registry
+        except NodeNotFoundError as e:
+            # This is an expected case - fall through to deterministic generation
+            logger.debug(f"Node {node_name} not found in registry, generating UUID")
         except Exception as e:
-            logger.warning(f"Error getting UUID from registry for {node_name}: {str(e)}")
+            # Log unexpected errors but still continue
+            logger.warning(f"Unexpected error getting UUID from registry for {node_name}: {str(e)}")
             
         # Generate a deterministic UUID from the name
         # This ensures consistency across executions
@@ -165,7 +178,7 @@ class ChainExecutor:
                 node_result = NodeExecutionResult(
                     node_id=node_uuid,
                     node_name=node_name,
-                    input_data=current_data
+                    input_text=current_data
                 )
                 
                 try:
@@ -188,12 +201,16 @@ class ChainExecutor:
                         error_msg = f"Node '{node_name}' returned {type(result)}, expected str"
                         logger.error(error_msg)
                         raise TypeError(error_msg)
+                    if not result:  # Check if result is empty
+                        error_msg = f"Node '{node_name}' returned empty string"
+                        logger.warning(error_msg)
+                        # Just log a warning but continue
                     current_data = result
                     logger.debug(f"Node {node_name} processed data successfully")
                     
                     # Update node result
                     node_execution_time = int((time.time() - node_start_time) * 1000)
-                    node_result.output_data = current_data
+                    node_result.output_text = current_data
                     node_result.execution_time_ms = node_execution_time
                     
                 except Exception as e:

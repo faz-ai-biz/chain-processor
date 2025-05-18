@@ -123,9 +123,22 @@ class FunctionNode(TextChainNode):
             
         Returns:
             The transformed output text
+            
+        Raises:
+            NodeValidationError: If validation fails or the function raises an exception
         """
         self.validate_input(input_text)
-        return self.func(input_text)
+        try:
+            result = self.func(input_text)
+            if not isinstance(result, str):
+                raise NodeValidationError(
+                    f"Function node '{self.name}' returned {type(result)}, expected str"
+                )
+            return result
+        except Exception as e:
+            if isinstance(e, NodeValidationError):
+                raise e
+            raise NodeValidationError(f"Error in function node '{self.name}': {str(e)}") from e
 
 
 def create_node(func: Callable[[str], str]) -> FunctionNode:

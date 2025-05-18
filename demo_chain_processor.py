@@ -93,9 +93,9 @@ def register_nodes_in_database():
         print(f"\nFound {total} nodes already in database.")
         return {node['name']: node['id'] for node in db_nodes}
     
-    print("\nNo nodes found in database. Creating sample nodes...")
+    print("\nNo nodes found in database. Registering built-in nodes...")
     
-    # Check available node types in registry
+    # Get available node types from registry
     response = requests.get(f"{API_URL}/nodes/available")
     available_nodes = print_response(response, "Available Node Types from Registry")
     
@@ -104,17 +104,26 @@ def register_nodes_in_database():
         print("Add 'from . import text_processing' to chain_processor_core/src/chain_processor_core/nodes/__init__.py")
         sys.exit(1)
     
-    print(f"\nFound {len(available_nodes)} nodes in registry.")
-    print("You need to register these in the database using a script inside Docker.")
-    print("\nHere's how to do it:")
-    print("1. Create a script to register nodes (similar to docker_register_nodes.py)")
-    print("2. Copy it to the API container: docker cp script.py chain-processor-api:/app/")
-    print("3. Run it in the container: docker exec chain-processor-api python /app/script.py")
+    # Register each available node via API
+    registered_nodes = {}
+    for node_name in available_nodes:
+        print(f"Registering node: {node_name}")
+        node_data = {
+            "name": node_name,
+            "description": f"Auto-registered node: {node_name}",
+            "tags": ["auto-registered"]
+        }
+        
+        response = requests.post(f"{API_URL}/nodes/", json=node_data)
+        if response.status_code == 200:
+            node_info = response.json()
+            registered_nodes[node_info['name']] = node_info['id']
+            print(f"Successfully registered {node_name}")
+        else:
+            print(f"Failed to register {node_name}: {response.status_code}")
     
-    print("\nSkipping automatic registration as it requires Docker access...")
-    print("Please register nodes manually and rerun this demo.")
-    
-    return {}
+    print(f"\nRegistered {len(registered_nodes)} nodes")
+    return registered_nodes
 
 # =============================================================================
 # Chain Strategy Functions

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 import math
 
@@ -178,4 +178,46 @@ def get_node(
         description=node.description,
         tags=node.tags,
         version=node.version,
-    ) 
+    )
+
+
+@router.get("/registry/{node_name}", response_model=Dict[str, Any])
+def get_node_registry_metadata(
+    node_name: str,
+) -> Dict[str, Any]:
+    """
+    Get metadata for a node from the registry.
+    
+    Args:
+        node_name: The name of the node
+        
+    Returns:
+        Node metadata
+    """
+    registry = default_registry
+    
+    try:
+        # Try to get the node class
+        node_class = registry.get_node_class(node_name)
+        
+        # Get metadata from docstring or class attributes
+        description = getattr(node_class, "__doc__", "").strip() or f"Node type: {node_name}"
+        
+        # Try to get tags from the registry
+        tags = []
+        for tag in registry.list_tags():
+            if node_name in registry.list_nodes(tag):
+                tags.append(tag)
+        
+        return {
+            "name": node_name,
+            "description": description,
+            "tags": tags
+        }
+    except Exception as e:
+        # Fallback to basic metadata
+        return {
+            "name": node_name,
+            "description": f"Node type: {node_name}",
+            "tags": ["auto-registered"]
+        } 

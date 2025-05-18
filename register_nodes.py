@@ -51,45 +51,24 @@ def register_nodes():
         print("All nodes are already registered")
         return True
     
-    # Hard-coded node registration script
-    # In a real application, you would fetch node metadata from the registry
-    node_definitions = {
-        "UppercaseNode": {
-            "name": "UppercaseNode",
-            "description": "Converts text to uppercase",
-            "tags": ["text", "transformation"]
-        },
-        "LowercaseNode": {
-            "name": "LowercaseNode",
-            "description": "Converts text to lowercase",
-            "tags": ["text", "transformation"]
-        },
-        "ReverseTextNode": {
-            "name": "ReverseTextNode",
-            "description": "Reverses the input text",
-            "tags": ["text", "transformation"]
-        },
-        "count_words": {
-            "name": "count_words",
-            "description": "Counts the number of words in the text",
-            "tags": ["text", "analysis"]
-        },
-        "count_characters": {
-            "name": "count_characters",
-            "description": "Counts the number of characters in the text",
-            "tags": ["text", "analysis"]
-        },
-        "remove_whitespace": {
-            "name": "remove_whitespace",
-            "description": "Removes extra whitespace from text",
-            "tags": ["text", "cleaning"]
-        }
-    }
+    # Get node metadata from registry API
+    registry_metadata = {}
+    for node_name in nodes_to_register:
+        response = requests.get(f"{API_URL}/nodes/registry/{node_name}")
+        if response.status_code == 200:
+            registry_metadata[node_name] = response.json()
+        else:
+            # Fallback to basic metadata
+            registry_metadata[node_name] = {
+                "name": node_name,
+                "description": f"Node type: {node_name}",
+                "tags": ["auto-registered"]
+            }
     
     # Register each node
     registered_count = 0
     for node_name in nodes_to_register:
-        node_data = node_definitions.get(node_name, {
+        node_data = registry_metadata.get(node_name, {
             "name": node_name,
             "description": f"Node type: {node_name}",
             "tags": ["auto-registered"]
