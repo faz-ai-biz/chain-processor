@@ -15,7 +15,7 @@ This repository contains the database layer for the Chain Processing System, inc
 
 ### Prerequisites
 
-- Python 3.13+
+- Python 3.11+
 - PostgreSQL 14.x
 - [Optional] PgBouncer for connection pooling
 

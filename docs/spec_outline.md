@@ -8,7 +8,7 @@
 * Modular platform, customizable nodes
 * Highlights: security, observability, DR, testing
 * Principles: SOLID, DRY, multi-repo
-* Versions: Python 3.13+, Node 20, Pydantic 2.11.4, FastAPI 0.115.12
+* Versions: Python 3.11+, Node 20, Pydantic 2.11.4, FastAPI 0.115.12
 
 ### **2. Scope**
 

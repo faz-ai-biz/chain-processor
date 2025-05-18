@@ -15,10 +15,10 @@
   - `docs/spec_outline.md`
   - `chain-processor-core/README.md`
   - `chain-processor-db/README.md`
-- **Issue**: All projects specify Python 3.13 which is not yet widely available.
+- **Issue**: Previous versions required Python 3.13, which was not widely available. The project now targets Python 3.11.
   Dockerfiles use `python:3.13-slim` which may not exist in public registries.
 - **Options**:
-  - **Option A**: Upgrade the build/test environment to Python 3.13 everywhere. (**Recomended as per human request***)
+  - **Option A**: Upgrade the build/test environment to Python 3.11 everywhere. (**Recomended as per human request***)
   - **Option B**: Lower the `requires-python` version to 3.11 or 3.12 to match
     available runtimes.
 - **Impact**: CI pipelines, Docker images and any scripts referencing the
@@ -391,10 +391,10 @@ Update tests to accommodate the new UUID-based approach:
   - `docs/spec_outline.md`
   - `chain-processor-core/README.md`
   - `chain-processor-db/README.md`
-- **Issue**: All projects specify Python 3.13 which is not yet widely available.
+- **Issue**: Previous versions required Python 3.13, which was not widely available. The project now targets Python 3.11.
   Dockerfiles use `python:3.13-slim` which may not exist in public registries.
 - **Options**:
-  - **Option A**: Upgrade the build/test environment to Python 3.13 everywhere. **(Recommended as per human request)**
+  - **Option A**: Upgrade the build/test environment to Python 3.11 everywhere. **(Recommended as per human request)**
   - **Option B**: Lower the `requires-python` version to 3.11 or 3.12 to match
     available runtimes.
 - **Impact**: CI pipelines, Docker images and any scripts referencing the
@@ -769,7 +769,7 @@ modules.
 
 ### Changed
 
-- **Breaking**: Updated to require Python 3.13 in all packages and Dockerfiles
+- **Breaking**: Updated to require Python 3.11 in all packages and Dockerfiles
 - **Breaking**: Changed NodeExecutionResult.node_id to use UUID objects instead of strings
 - Improved NodeExecutionResult to properly track success state
 - Enhanced type safety in chain executor with explicit type checking
