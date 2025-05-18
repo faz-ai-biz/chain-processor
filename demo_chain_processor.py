@@ -84,10 +84,13 @@ def register_nodes_in_database():
     
     # First check if nodes are already in database
     response = requests.get(f"{API_URL}/nodes/")
-    db_nodes = print_response(response, "Current Database Nodes")
+    response_data = print_response(response, "Current Database Nodes")
     
-    if db_nodes and len(db_nodes) > 0:
-        print(f"\nFound {len(db_nodes)} nodes already in database.")
+    # Handle the PaginatedResponse format
+    if response_data and 'items' in response_data:
+        db_nodes = response_data['items']
+        total = response_data.get('total', len(db_nodes))
+        print(f"\nFound {total} nodes already in database.")
         return {node['name']: node['id'] for node in db_nodes}
     
     print("\nNo nodes found in database. Creating sample nodes...")
@@ -248,7 +251,15 @@ def main():
     if not db_nodes:
         # Try to get nodes again in case they were manually registered
         response = requests.get(f"{API_URL}/nodes/")
-        db_nodes = {node['name']: node['id'] for node in response.json()}
+        response_data = response.json()
+        
+        # Handle the PaginatedResponse format
+        if response_data and 'items' in response_data:
+            nodes = response_data['items']
+            db_nodes = {node['name']: node['id'] for node in nodes}
+        else:
+            print("No nodes available. Please register nodes and try again.")
+            sys.exit(1)
     
     if not db_nodes:
         print("No nodes available. Please register nodes and try again.")
