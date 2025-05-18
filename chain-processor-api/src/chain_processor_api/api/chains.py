@@ -147,15 +147,13 @@ def execute_chain(
             detail=f"Chain with ID {chain_id} is not active",
         )
     
-    # Begin transaction
-    with db.begin_nested():
-        # Create a chain execution record
-        chain_execution = ChainExecution(
-            strategy_id=chain_id,
-            input_text=request.input_text,
-            status=ExecutionStatus.IN_PROGRESS,
-        )
-        execution_repo.create(chain_execution)
+    # Create a chain execution record
+    chain_execution = ChainExecution(
+        strategy_id=chain_id,
+        input_text=request.input_text,
+        status=ExecutionStatus.IN_PROGRESS,
+    )
+    execution_repo.create(chain_execution)
     
     try:
         # Get the node configurations
@@ -164,12 +162,11 @@ def execute_chain(
         ).order_by(StrategyNode.position).all()
         
         if not strategy_nodes:
-            with db.begin_nested():
-                chain_execution.status = ExecutionStatus.FAILED
-                chain_execution.error = f"Chain with ID {chain_id} has no nodes"
-                chain_execution.completed_at = datetime.utcnow()
-                db.commit()
-                
+            chain_execution.status = ExecutionStatus.FAILED
+            chain_execution.error = f"Chain with ID {chain_id} has no nodes"
+            chain_execution.completed_at = datetime.utcnow()
+            db.commit()
+            
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Chain with ID {chain_id} has no nodes",
@@ -203,55 +200,53 @@ def execute_chain(
         )
         
         # Update the chain execution record
-        with db.begin_nested():
-            chain_execution.status = ExecutionStatus.SUCCESS if result.success else ExecutionStatus.FAILED
-            chain_execution.output_text = result.output_data
-            chain_execution.error = result.error
-            chain_execution.execution_time_ms = result.execution_time_ms
-            chain_execution.completed_at = datetime.utcnow()
-            db.flush()
-            
-            # Create node execution records
-            # Don't rely on the node_id from the results, use the ordered nodes instead
-            node_executions = []
-            
-            # Assuming the order of nodes in the strategy matches the order of results
-            if len(result.node_results) == len(ordered_nodes):
-                for i, node_result in enumerate(result.node_results):
-                    # NodeExecutionResult now includes both node_id (UUID) and node_name (str)
-                    # We can use the node_id directly as it's already a UUID
-                    node_exec = NodeExecution(
-                        execution_id=chain_execution.id,
-                        node_id=node_result.node_id,  # Use UUID directly
-                        input_text=node_result.input_text,
-                        output_text=node_result.output_data,
-                        error=node_result.error,
-                        status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
-                        execution_time_ms=node_result.execution_time_ms,
-                        completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
-                    )
-                    node_executions.append(node_exec)
-            else:
-                # If lengths don't match, log the issue and fail explicitly
-                error_msg = f"Node result count mismatch: {len(result.node_results)} vs {len(ordered_nodes)}"
-                print(f"Error: {error_msg}")
-                
-                # Update chain execution
-                chain_execution.status = ExecutionStatus.FAILED
-                chain_execution.error = error_msg
-                chain_execution.completed_at = datetime.utcnow()
-                db.commit()
-                
-                # Return error response
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Internal processing error: {error_msg}"
+        chain_execution.status = ExecutionStatus.SUCCESS if result.success else ExecutionStatus.FAILED
+        chain_execution.output_text = result.output_data
+        chain_execution.error = result.error
+        chain_execution.execution_time_ms = result.execution_time_ms
+        chain_execution.completed_at = datetime.utcnow()
+        
+        # Create node execution records
+        # Don't rely on the node_id from the results, use the ordered nodes instead
+        node_executions = []
+        
+        # Assuming the order of nodes in the strategy matches the order of results
+        if len(result.node_results) == len(ordered_nodes):
+            for i, node_result in enumerate(result.node_results):
+                # NodeExecutionResult now includes both node_id (UUID) and node_name (str)
+                # We can use the node_id directly as it's already a UUID
+                node_exec = NodeExecution(
+                    execution_id=chain_execution.id,
+                    node_id=node_result.node_id,  # Use UUID directly
+                    input_text=node_result.input_text,
+                    output_text=node_result.output_data,
+                    error=node_result.error,
+                    status=ExecutionStatus.SUCCESS if node_result.success else ExecutionStatus.FAILED,
+                    execution_time_ms=node_result.execution_time_ms,
+                    completed_at=datetime.utcnow() if node_result.output_data or node_result.error else None
                 )
+                node_executions.append(node_exec)
+        else:
+            # If lengths don't match, log the issue and fail explicitly
+            error_msg = f"Node result count mismatch: {len(result.node_results)} vs {len(ordered_nodes)}"
+            print(f"Error: {error_msg}")
             
-            # Add all node executions in a single operation
-            if node_executions:
-                db.add_all(node_executions)
-                db.commit()
+            # Update chain execution
+            chain_execution.status = ExecutionStatus.FAILED
+            chain_execution.error = error_msg
+            chain_execution.completed_at = datetime.utcnow()
+            db.commit()
+            
+            # Return error response
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Internal processing error: {error_msg}"
+            )
+        
+        # Add all node executions in a single operation
+        if node_executions:
+            db.add_all(node_executions)
+            db.commit()
         
         # Create the response
         node_results = [

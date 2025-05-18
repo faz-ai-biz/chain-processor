@@ -45,6 +45,12 @@ class NodeReference(BaseModel):
     config: Dict[str, Any] = {}
 
 
+class NodeCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+    tags: List[str] = []
+
+
 class NodeRead(BaseModel):
     id: UUID
     name: str

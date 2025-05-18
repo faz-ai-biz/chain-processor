@@ -47,6 +47,23 @@ class NodeRepository(BaseRepository[Node]):
         ).limit(limit).offset(offset)
         return list(self.db.scalars(stmt).all())
 
+    def count(self, tag: Optional[str] = None) -> int:
+        """
+        Count the number of nodes, optionally filtered by tag.
+        
+        Args:
+            tag: Optional tag to filter by
+            
+        Returns:
+            The number of nodes
+        """
+        if tag:
+            stmt = select(func.count()).select_from(Node).where(Node.tags.contains([tag]))
+        else:
+            stmt = select(func.count()).select_from(Node)
+            
+        return self.db.scalar(stmt) or 0
+
     def get_active_nodes(self, limit: int = 100, offset: int = 0) -> List[Node]:
         """
         Get active nodes.

@@ -14,10 +14,53 @@ from chain_processor_db.models.node import Node
 from chain_processor_db.repositories.node_repo import NodeRepository
 from chain_processor_core.lib_chains.registry import default_registry
 
-from ..schemas import NodeRead, PaginatedResponse
+from ..schemas import NodeRead, NodeCreate, PaginatedResponse
 
 
 router = APIRouter(prefix="/nodes", tags=["nodes"])
+
+
+@router.post("/", response_model=NodeRead)
+def create_node(node_in: NodeCreate, db: Session = Depends(get_db)) -> NodeRead:
+    """
+    Create a new node in the database.
+    
+    Args:
+        node_in: The node data
+        db: Database session
+        
+    Returns:
+        The created node
+    """
+    repo = NodeRepository(db)
+    
+    # Check if node with same name already exists
+    existing = repo.get_by_name(node_in.name)
+    if existing:
+        return NodeRead(
+            id=existing.id,
+            name=existing.name,
+            description=existing.description,
+            tags=existing.tags,
+            version=existing.version,
+        )
+    
+    # Create new node
+    node = Node(
+        name=node_in.name,
+        description=node_in.description or "",
+        tags=node_in.tags,
+        is_active=True,
+    )
+    repo.create(node)
+    
+    return NodeRead(
+        id=node.id,
+        name=node.name,
+        description=node.description,
+        tags=node.tags,
+        version=node.version,
+    )
 
 
 @router.get("/", response_model=PaginatedResponse[NodeRead])
